@@ -2,6 +2,8 @@
 
 This repository contains the group project for the course [**PCS 3858: Embedded Systems Laboratory**](https://uspdigital.usp.br/jupiterweb/obterDisciplina?sgldis=PCS3858&verdis=1) at the University of São Paulo.
 
+Open electronics project for a biometric monitoring system with [ESP32](https://en.wikipedia.org/wiki/ESP32) based modular wearable sensor modules and a [Rasperry Pi 3B+](https://www.raspberrypi.com/products/raspberry-pi-3-model-b-plus/) based central monitoring dashboard. Wireless communication of the sensor data collected at the ESP32 based sensor nodes is transmitted via [MQTT](https://mqtt.org/) to a [Mosquitto broker](https://mosquitto.org/) hosted at the Raspberry Pi.
+
 ## Wire color code
 
 | Signal    | Color     |
