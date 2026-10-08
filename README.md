@@ -5,9 +5,9 @@ This repository contains the group project for the course [**PCS 3858: Embedded 
 Open electronics project for a biometric monitoring system with [ESP32](https://en.wikipedia.org/wiki/ESP32) based modular wearable sensor modules and a [Rasperry Pi 3B+](https://www.raspberrypi.com/products/raspberry-pi-3-model-b-plus/) based central monitoring dashboard. Wireless communication of the sensor data collected at the ESP32 based sensor nodes is transmitted via [MQTT](https://mqtt.org/) to a [Mosquitto broker](https://mosquitto.org/) hosted at the Raspberry Pi.
 
 There are 3 nodes in the system:
-- ESP32 wearable device to be place on the person's finger with **MAX30102 pulse oximeter and heart rate sensor** and **NTC20K thermistors** for the *biometric data collection feature*.
+- ESP32 wearable device to be placed on the user's finger with **MAX30102 pulse oximeter and heart rate sensor** and **NTC20K thermistors** for the *biometric data collection feature*.
 ![](MAX30102_operationPrinciple.png)
-- ESP32 wearable device to be place on the person's body with **MPU6050 accelerometer** collecting data for the *fall detection feature*. A **LED button** and a **vibration motor** are integrated for a *false positive prevention feature*, where incorrect fall detections can be flagged to avoid triggering an alert on the server.
+- ESP32 wearable device to be placed on the user's body with **MPU6050 accelerometer** collecting data for the *fall detection feature*. A **LED button** and a **vibration motor** are integrated for a *false positive prevention feature*, where incorrect fall detections can be flagged to avoid triggering an alert on the server.
 - Raspberry Pi 3B+ server running an **MQTT broker** to collect published sensor data from the ESP32 nodes and a **Flask dashboard web application** using the integrated [Jinja template engine](https://flask.palletsprojects.com/en/stable/templating/).
 
 ```
