@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCS3858 - Patient Health Monitor</title>
+    <!-- CSS Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header>
+        <h1>Wearable Health Central</h1>
+        <div id="connection-status" class="status-badge online">Connected</div>
+    </header>
+
+    <main class="dashboard-grid">
+        <!-- Heart Rate & SpO2 Card -->
+        <div class="card">
+            <h3>Heart Rate & SpO2</h3>
+            <div class="metrics-row">
+                <div>HR: <span id="hr-val" class="metric">--</span> BPM</div>
+                <div>SpO2: <span id="spo2-val" class="metric">--</span> %</div>
+            </div>
+            <div class="chart-container">
+                <canvas id="ppgChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Temperature & Alerts Card -->
+        <div class="card">
+            <h3>Skin Temperature & Status</h3>
+            <div class="metric-large"><span id="temp-val">--</span> °C</div>
+
+            <div id="alert-box" class="alert-box alert-normal">
+                Status: <strong id="alert-text">Normal</strong>
+            </div>
+        </div>
+    </main>
+
+    <!-- Custom Frontend Logic -->
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
