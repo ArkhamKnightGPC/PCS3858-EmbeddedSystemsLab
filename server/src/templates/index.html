@@ -4,42 +4,68 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PCS3858 - Patient Health Monitor</title>
-    <!-- CSS Stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <header>
-        <h1>Wearable Health Central</h1>
-        <div id="connection-status" class="status-badge online">Connected</div>
+        <div>
+            <h1>Wearable Health Central</h1>
+            <p class="subtitle">Finger wearable telemetry</p>
+        </div>
+        <div id="connection-status" class="status-badge offline">Waiting for MQTT</div>
     </header>
 
     <main class="dashboard-grid">
-        <!-- Heart Rate & SpO2 Card -->
-        <div class="card">
-            <h3>Heart Rate & SpO2</h3>
+        <section class="card card-wide">
+            <h2>Heart Rate</h2>
             <div class="metrics-row">
-                <div>HR: <span id="hr-val" class="metric">--</span> BPM</div>
-                <div>SpO2: <span id="spo2-val" class="metric">--</span> %</div>
+                <div class="metric-block">
+                    <span class="metric-label">Current</span>
+                    <span id="bpm-val" class="metric">--</span>
+                    <span class="unit">BPM</span>
+                </div>
+                <div class="metric-block">
+                    <span class="metric-label">Average</span>
+                    <span id="avg-bpm-val" class="metric">--</span>
+                    <span class="unit">BPM</span>
+                </div>
+                <div class="metric-block">
+                    <span class="metric-label">IR signal</span>
+                    <span id="ir-val" class="metric">--</span>
+                </div>
             </div>
             <div class="chart-container">
-                <canvas id="ppgChart"></canvas>
+                <canvas id="heartRateChart"></canvas>
             </div>
-        </div>
+        </section>
 
-        <!-- Temperature & Alerts Card -->
-        <div class="card">
-            <h3>Skin Temperature & Status</h3>
-            <div class="metric-large"><span id="temp-val">--</span> °C</div>
-
-            <div id="alert-box" class="alert-box alert-normal">
-                Status: <strong id="alert-text">Normal</strong>
+        <section class="card">
+            <h2>Skin Temperature</h2>
+            <div class="metric-large">
+                <span id="temp-val">--</span><span class="unit"> °C</span>
             </div>
-        </div>
+            <p id="temp-status" class="detail-text">Waiting for a valid reading</p>
+        </section>
+
+        <section class="card">
+            <h2>Sensor Status</h2>
+            <div id="finger-box" class="alert-box alert-warning">
+                <strong id="finger-text">Waiting for data</strong>
+            </div>
+            <dl class="status-details">
+                <div>
+                    <dt>Last sample</dt>
+                    <dd id="last-update">--</dd>
+                </div>
+                <div>
+                    <dt>MQTT topic</dt>
+                    <dd>{{ mqtt_topic }}</dd>
+                </div>
+            </dl>
+        </section>
     </main>
 
-    <!-- Custom Frontend Logic -->
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
 </html>

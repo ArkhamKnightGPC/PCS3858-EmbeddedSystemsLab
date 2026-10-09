@@ -1,49 +1,129 @@
-import sys
-import time
-import json
-import logging
-import random
+from __future__ import annotations
 
+import json
+import math
+import threading
+import time
 from datetime import datetime
-from typing import Iterator
-from flask import Flask, Response, render_template, request, stream_with_context
+from typing import Any, Iterator
+
+from flask import Flask, Response, render_template, stream_with_context
+
 
 class WebApp:
-    def __init__(self, host="0.0.0.0", port=5000, debug=False):
+    """Flask dashboard backed by the latest MQTT telemetry sample."""
+
+    STALE_AFTER_SECONDS = 5
+
+    def __init__(
+        self,
+        host: str = "0.0.0.0",
+        port: int = 5000,
+        debug: bool = False,
+        mqtt_topic: str = "wearable/finger/measurements",
+    ):
         self.app = Flask(__name__)
         self.host = host
         self.port = port
         self.debug = debug
-
-        # Telemetry payload matching your wearable sensors
-        self.telemetry = {
-            "hr": 75,
-            "spo2": 98,
-            "temp": 36.5,
-            "fall_alert": False
+        self.mqtt_topic = mqtt_topic
+        self._lock = threading.Lock()
+        self._mqtt_connected = False
+        self._last_received_monotonic: float | None = None
+        self._telemetry: dict[str, Any] = {
+            "ir": None,
+            "bpm": None,
+            "avg_bpm": None,
+            "finger_detected": False,
+            "temperature_c": None,
+            "temperature_valid": False,
+            "last_update": None,
         }
 
         self.app.add_url_rule("/", "index", self.index)
         self.app.add_url_rule("/chart-data", "chart_data", self.chart_data)
 
+    @staticmethod
+    def _number(payload: dict[str, Any], field: str) -> float:
+        value = payload.get(field)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError(f"{field} must be a number")
+        if not math.isfinite(value):
+            raise ValueError(f"{field} must be finite")
+        return float(value)
+
+    def update_telemetry(self, payload: dict[str, Any]) -> None:
+        """Validate and atomically store one wearable MQTT message."""
+        ir = self._number(payload, "ir")
+        bpm = self._number(payload, "bpm")
+        avg_bpm = self._number(payload, "avg_bpm")
+
+        finger_detected = payload.get("finger_detected")
+        temperature_valid = payload.get("temperature_valid")
+        if not isinstance(finger_detected, bool):
+            raise TypeError("finger_detected must be a boolean")
+        if not isinstance(temperature_valid, bool):
+            raise TypeError("temperature_valid must be a boolean")
+
+        temperature = payload.get("temperature_c")
+        if temperature_valid:
+            temperature = self._number(payload, "temperature_c")
+        elif temperature is not None:
+            raise ValueError("temperature_c must be null when it is invalid")
+
+        sample = {
+            "ir": int(ir),
+            "bpm": round(bpm, 1),
+            "avg_bpm": int(avg_bpm),
+            "finger_detected": finger_detected,
+            "temperature_c": round(temperature, 1) if temperature is not None else None,
+            "temperature_valid": temperature_valid,
+            "last_update": datetime.now().astimezone().strftime("%H:%M:%S"),
+        }
+
+        with self._lock:
+            self._telemetry = sample
+            self._last_received_monotonic = time.monotonic()
+
+    def set_mqtt_connected(self, connected: bool) -> None:
+        with self._lock:
+            self._mqtt_connected = connected
+
+    def telemetry_snapshot(self) -> dict[str, Any]:
+        with self._lock:
+            snapshot = dict(self._telemetry)
+            mqtt_connected = self._mqtt_connected
+            last_received = self._last_received_monotonic
+
+        snapshot["mqtt_connected"] = mqtt_connected
+        snapshot["data_stale"] = (
+            last_received is None
+            or time.monotonic() - last_received > self.STALE_AFTER_SECONDS
+        )
+        return snapshot
+
     def index(self) -> str:
-        # Flask automatically looks inside the /templates folder for index.html
-        return render_template("index.html")
+        return render_template("index.html", mqtt_topic=self.mqtt_topic)
 
     def update_data(self) -> Iterator[str]:
         while True:
-            payload = {
-                "time": datetime.now().strftime("%H:%M:%S"),
-                **self.telemetry
-            }
-            yield f"data:{json.dumps(payload)}\n\n"
-            time.sleep(1) # Updates frontend according to telemetry rate
+            yield f"data: {json.dumps(self.telemetry_snapshot())}\n\n"
+            time.sleep(1)
 
     def chart_data(self) -> Response:
-        response = Response(stream_with_context(self.update_data()), mimetype="text/event-stream")
+        response = Response(
+            stream_with_context(self.update_data()),
+            mimetype="text/event-stream",
+        )
         response.headers["Cache-Control"] = "no-cache"
         response.headers["X-Accel-Buffering"] = "no"
         return response
 
-    def run(self):
-        self.app.run(host=self.host, port=self.port, debug=self.debug, use_reloader=False, threaded=True)
+    def run(self) -> None:
+        self.app.run(
+            host=self.host,
+            port=self.port,
+            debug=self.debug,
+            use_reloader=False,
+            threaded=True,
+        )

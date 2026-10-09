@@ -1,2 +1,5 @@
 # .pdf datasheet files
+
+# Local wearable credentials
+wearable_finger/secrets.h
 datasheets/

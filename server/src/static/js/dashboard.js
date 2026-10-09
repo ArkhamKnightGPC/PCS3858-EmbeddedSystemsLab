@@ -1,81 +1,128 @@
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. Initialize Chart.js for Heart Rate & SpO2 Trends
-    const ctx = document.getElementById("ppgChart").getContext("2d");
-    const ppgChart = new Chart(ctx, {
+    const maximumSamples = 30;
+    const chartContext = document.getElementById("heartRateChart").getContext("2d");
+    const heartRateChart = new Chart(chartContext, {
         type: "line",
         data: {
-            labels: [], // Time labels
+            labels: [],
             datasets: [
                 {
                     label: "Heart Rate (BPM)",
                     data: [],
                     borderColor: "#e74c3c",
+                    backgroundColor: "rgba(231, 76, 60, 0.1)",
                     borderWidth: 2,
-                    fill: false,
-                    tension: 0.3
+                    fill: true,
+                    tension: 0.3,
+                    spanGaps: true
                 },
                 {
-                    label: "SpO2 (%)",
+                    label: "Average BPM",
                     data: [],
-                    borderColor: "#3498db",
+                    borderColor: "#8e44ad",
                     borderWidth: 2,
+                    borderDash: [6, 4],
                     fill: false,
-                    tension: 0.3
+                    tension: 0.3,
+                    spanGaps: true
                 }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            animation: false,
             scales: {
-                x: { display: true, title: { display: true, text: 'Time' } },
-                y: { beginAtZero: false }
+                x: { title: { display: true, text: "Time" } },
+                y: { suggestedMin: 40, suggestedMax: 160 }
             }
         }
     });
 
-    // 2. Connect to Flask SSE endpoint
+    const connectionStatus = document.getElementById("connection-status");
+    const bpmValue = document.getElementById("bpm-val");
+    const averageBpmValue = document.getElementById("avg-bpm-val");
+    const irValue = document.getElementById("ir-val");
+    const temperatureValue = document.getElementById("temp-val");
+    const temperatureStatus = document.getElementById("temp-status");
+    const fingerBox = document.getElementById("finger-box");
+    const fingerText = document.getElementById("finger-text");
+    const lastUpdate = document.getElementById("last-update");
+
+    function displayNumber(value, digits = 0) {
+        return typeof value === "number" ? value.toFixed(digits) : "--";
+    }
+
+    function setConnectionState(telemetry) {
+        if (!telemetry.mqtt_connected) {
+            connectionStatus.className = "status-badge offline";
+            connectionStatus.innerText = "MQTT disconnected";
+        } else if (telemetry.data_stale) {
+            connectionStatus.className = "status-badge warning";
+            connectionStatus.innerText = "Waiting for telemetry";
+        } else {
+            connectionStatus.className = "status-badge online";
+            connectionStatus.innerText = "Live";
+        }
+    }
+
+    function updateChart(telemetry) {
+        if (telemetry.last_update === null || telemetry.data_stale) return;
+
+        const labels = heartRateChart.data.labels;
+        if (labels.length > 0 && labels[labels.length - 1] === telemetry.last_update) {
+            return;
+        }
+
+        if (labels.length >= maximumSamples) {
+            labels.shift();
+            heartRateChart.data.datasets.forEach((dataset) => dataset.data.shift());
+        }
+
+        labels.push(telemetry.last_update);
+        heartRateChart.data.datasets[0].data.push(telemetry.bpm);
+        heartRateChart.data.datasets[1].data.push(telemetry.avg_bpm);
+        heartRateChart.update("none");
+    }
+
     const eventSource = new EventSource("/chart-data");
 
-    eventSource.onmessage = function (event) {
+    eventSource.onmessage = (event) => {
         const telemetry = JSON.parse(event.data);
+        setConnectionState(telemetry);
 
-        // Update Text Metrics
-        if (telemetry.hr !== undefined) document.getElementById("hr-val").innerText = telemetry.hr;
-        if (telemetry.spo2 !== undefined) document.getElementById("spo2-val").innerText = telemetry.spo2;
-        if (telemetry.temp !== undefined) document.getElementById("temp-val").innerText = telemetry.temp.toFixed(1);
+        bpmValue.innerText = displayNumber(telemetry.bpm, 1);
+        averageBpmValue.innerText = displayNumber(telemetry.avg_bpm);
+        irValue.innerText = displayNumber(telemetry.ir);
+        lastUpdate.innerText = telemetry.last_update ?? "--";
 
-        // Handle Alert Status (e.g., Fall Detected / Warning)
-        const alertBox = document.getElementById("alert-box");
-        const alertText = document.getElementById("alert-text");
-
-        if (telemetry.fall_alert) {
-            alertBox.className = "alert-box alert-danger";
-            alertText.innerText = "POSSIBLE FALL DETECTED!";
+        if (telemetry.temperature_valid && typeof telemetry.temperature_c === "number") {
+            temperatureValue.innerText = telemetry.temperature_c.toFixed(1);
+            temperatureStatus.innerText = "Valid sensor reading";
         } else {
-            alertBox.className = "alert-box alert-normal";
-            alertText.innerText = "System Normal";
+            temperatureValue.innerText = "--";
+            temperatureStatus.innerText = "Temperature reading out of bounds";
         }
 
-        // Update Chart Data (Keep last 20 samples)
-        const timeLabel = telemetry.time;
-
-        if (ppgChart.data.labels.length >= 20) {
-            ppgChart.data.labels.shift();
-            ppgChart.data.datasets[0].data.shift();
-            ppgChart.data.datasets[1].data.shift();
+        if (telemetry.last_update === null) {
+            fingerBox.className = "alert-box alert-warning";
+            fingerText.innerText = "Waiting for data";
+        } else if (telemetry.data_stale) {
+            fingerBox.className = "alert-box alert-warning";
+            fingerText.innerText = "Telemetry is stale";
+        } else if (telemetry.finger_detected) {
+            fingerBox.className = "alert-box alert-normal";
+            fingerText.innerText = "Finger detected";
+        } else {
+            fingerBox.className = "alert-box alert-warning";
+            fingerText.innerText = "No finger detected";
         }
 
-        ppgChart.data.labels.push(timeLabel);
-        ppgChart.data.datasets[0].data.push(telemetry.hr);
-        ppgChart.data.datasets[1].data.push(telemetry.spo2);
-
-        ppgChart.update("quiet");
+        updateChart(telemetry);
     };
 
-    eventSource.onerror = function () {
-        const statusBadge = document.getElementById("connection-status");
-        statusBadge.className = "status-badge offline";
-        statusBadge.innerText = "Disconnected";
+    eventSource.onerror = () => {
+        connectionStatus.className = "status-badge offline";
+        connectionStatus.innerText = "Dashboard disconnected";
     };
 });
