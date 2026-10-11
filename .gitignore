@@ -1,5 +1,7 @@
 # .pdf datasheet files
 
 # Local wearable credentials
-wearable_finger/secrets.h
+wearable_esp32/secrets.h
+server/venv/
+server/src/__pycache__/
 datasheets/

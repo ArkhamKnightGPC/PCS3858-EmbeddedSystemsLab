@@ -15,23 +15,23 @@ def environment_port(name: str, default: int) -> int:
 
 
 if __name__ == "__main__":
-    mqtt_topic = os.getenv("MQTT_TOPIC", "wearable/finger/measurements")
-    mqtt_username = os.getenv("MQTT_USERNAME")
-    mqtt_password = os.getenv("MQTT_PASSWORD")
+    mqtt_topic = "wearable/finger/measurements"
+    mqtt_username = "USER"
+    mqtt_password = "PASS"
     if not mqtt_username or not mqtt_password:
         raise RuntimeError(
             "MQTT_USERNAME and MQTT_PASSWORD must be configured before startup"
         )
 
     web_app = WebApp(
-        host=os.getenv("WEB_HOST", "0.0.0.0"),
+        host=os.getenv("WEB_HOST", "10.49.29.243"),
         port=environment_port("WEB_PORT", 5000),
         debug=False,
         mqtt_topic=mqtt_topic,
     )
 
     mqtt_manager = MqttManager(
-        broker=os.getenv("MQTT_BROKER", "127.0.0.1"),
+        broker=os.getenv("MQTT_BROKER", "10.49.29.243"),
         port=environment_port("MQTT_PORT", 1883),
         sub_topic=mqtt_topic,
         username=mqtt_username,

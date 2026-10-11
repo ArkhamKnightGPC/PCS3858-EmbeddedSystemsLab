@@ -7,7 +7,7 @@
 #include "secrets.h"
 
 // --- Network and MQTT Configuration ---
-const char *MQTT_BROKER = "10.144.4.16";
+const char *MQTT_BROKER = "10.49.29.243";
 const uint16_t MQTT_PORT = 1883;
 const char *MQTT_TOPIC = "wearable/finger/measurements";
 
@@ -23,7 +23,7 @@ const unsigned long MQTT_RECONNECT_INTERVAL = 5000;
 const int adcPin = 34; // NTC 20k thermistor connected to GPIO 34 (ADC1_6)
 
 // --- NTC 20k Parameters ---
-const float R_REF = 47000.0;        // Fixed 47k resistor value (ohms)
+const float R_REF = 20000.0;        // Fixed 47k resistor value (ohms)
 const float NOMINAL_R = 20000.0;    // Resistance at 25°C (20k ohms)
 const float NOMINAL_T = 25.0;       // Nominal temperature in °C
 const float B_COEFFICIENT = 3950.0; // Beta value
