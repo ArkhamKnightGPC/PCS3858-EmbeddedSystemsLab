@@ -4,20 +4,27 @@ This repository contains the group project for the course [**PCS 3858: Embedded 
 
 Open electronics project for a biometric monitoring system with an [ESP32](https://en.wikipedia.org/wiki/ESP32) based modular wearable sensor module and a [Raspberry Pi 3B+](https://www.raspberrypi.com/products/raspberry-pi-3-model-b-plus/) based central monitoring dashboard. Wireless communication of the sensor data collected at the ESP32 based sensor node is transmitted via [MQTT](https://mqtt.org/) to a [Mosquitto broker](https://mosquitto.org/) hosted at the Raspberry Pi.
 
-Project video demonstrations:
-- [Demo for project proposal and initial prototype presentation](https://youtube.com/shorts/uNojzv1VTRo)
-- [Raspberry Pi remote access](https://youtu.be/Vqwoxe2uHkw)
+**A video demonstration for the project's initial prototype presentation is [available on Youtube](https://youtu.be/4NxQbYR5aoM).**
 
----
+<img src="imagens/Interface_FingerDetected.PNG" alt="Rpi3B+ Web App" width="95%">
+
+## Table of contents
+- [System overview](#system-overview)
+- [Repository file structure](#repository-file-structure)
+- [Reference Links](#reference-links)
+
+
+## System overview
 
 There are 2 nodes in the system:
 
 1. ESP32 wearable device with ***(a)*** a component to be placed on the user's finger with **MAX30102 pulse oximeter and heart rate sensor** and **NTC20K thermistors** for the *biometric data collection feature*; and ***(b)*** a component to be placed on the user's body with **MPU6050 accelerometer** collecting data for the *fall detection feature*. A **LED button** and a **vibration motor** are integrated for a *false positive prevention feature*, where incorrect fall detections can be flagged to avoid triggering an alert on the server.
 
-<img src="MAX30102_operationPrinciple.png" alt="MAX30102 operation principle" width="95%">
-
 2. Raspberry Pi 3B+ server running an **MQTT broker** to collect published sensor data from the ESP32 nodes and a **Flask dashboard web application** using the integrated [Jinja template engine](https://flask.palletsprojects.com/en/stable/templating/).
 
+**OBS**: the **MAX30102** and **MPU6050** sensors share a connection to the I2C pins in the ESP32. The thermistor measurements are provided via an AnalogInput pin.
+
+## Repository file structure
 
 ```
 PCS3858-EmbeddedSystemsLab
@@ -35,10 +42,6 @@ PCS3858-EmbeddedSystemsLab
     └──── css/
         └──── style.css
 ```
-
-**OBS**: the **MAX30102** and **MPU6050** sensors share a connection to the I2C pins in the ESP32. The thermistor measurements are provided via an AnalogInput pin.
-
-<img src="I2C.png" alt="I2C network" width="75%">
 
 ## Reference Links
 
