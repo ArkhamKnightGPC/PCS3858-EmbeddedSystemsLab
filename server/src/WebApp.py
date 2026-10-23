@@ -24,7 +24,7 @@ class WebApp:
         mqtt_topic: str = "wearable/finger/measurements",
     ):
         self.app = Flask(__name__)
-        self host = host
+        self.host = host
         self.port = port
         self.debug = debug
         self.mqtt_topic = mqtt_topic
