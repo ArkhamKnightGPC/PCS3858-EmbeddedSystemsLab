@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-    const maximumSamples = 20; // Reduzido para diminuir a carga de processamento
+    const maximumSamples = 20;
 
     // 1. Gráfico de Frequência Cardíaca
     const chartContext = document.getElementById("heartRateChart").getContext("2d");
@@ -73,7 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // 3. Gráfico Sismográfico do MPU6050 (Estilo Otimizado)
+    // 3. Gráfico Sismográfico do MPU6050
     const seismoCanvas = document.getElementById("seismographChart");
     let seismographChart = null;
 
@@ -87,7 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     {
                         label: "Eixo X (g)",
                         data: [],
-                        borderColor: "#f1c40f", // Amarelo harmonizado
+                        borderColor: "#f1c40f",
                         borderWidth: 1.5,
                         fill: false,
                         tension: 0.1
@@ -95,7 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     {
                         label: "Eixo Y (g)",
                         data: [],
-                        borderColor: "#e74c3c", // Vermelho harmonizado
+                        borderColor: "#e74c3c",
                         borderWidth: 1.5,
                         fill: false,
                         tension: 0.1
@@ -103,7 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     {
                         label: "Eixo Z (g)",
                         data: [],
-                        borderColor: "#9b59b6", // Roxo / Magenta harmonizado
+                        borderColor: "#9b59b6",
                         borderWidth: 1.5,
                         fill: false,
                         tension: 0.1
@@ -114,7 +114,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: false,
-                events: [], // Desabilita eventos de ponteiro/hover para economizar CPU
+                events: [],
                 elements: { point: { radius: 0 } },
                 scales: {
                     x: {
@@ -215,7 +215,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (mpuSeismoStatus) {
-            if (telemetry.fall_detected) {
+            if (telemetry.fall_state === "WAITING_CONFIRMATION" || telemetry.fall_state === "FULL_ALERT") {
                 mpuSeismoStatus.className = "status-badge offline";
                 mpuSeismoStatus.innerText = `FALL DETECTED! (${telemetry.min_g_dip}g)`;
             } else {
@@ -226,12 +226,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Unpack all 50 samples into Chart.js
         telemetry.accel_batch.forEach((sample) => {
-            if (seismographChart.data.labels.length >= 100) { // Keep 2-second rolling window (100 samples)
+            if (seismographChart.data.labels.length >= 100) {
                 seismographChart.data.labels.shift();
                 seismographChart.data.datasets.forEach((ds) => ds.data.shift());
             }
 
-            seismographChart.data.labels.push(""); // Time tick
+            seismographChart.data.labels.push("");
             seismographChart.data.datasets[0].data.push(sample[0]); // X
             seismographChart.data.datasets[1].data.push(sample[1]); // Y
             seismographChart.data.datasets[2].data.push(sample[2]); // Z
@@ -256,9 +256,6 @@ document.addEventListener("DOMContentLoaded", () => {
             alertBanner.style.display = "none";
         }
     }
-
-    // Call inside eventSource.onmessage:
-    updateFallAlertState(telemetry);
 
     // Receptor SSE
     const eventSource = new EventSource("/chart-data");
@@ -297,6 +294,7 @@ document.addEventListener("DOMContentLoaded", () => {
         updateHeartRateChart(telemetry);
         updateTempChart(telemetry);
         updateSeismograph(telemetry);
+        updateFallAlertState(telemetry); // Chamada movida para dentro do evento SSE
     };
 
     eventSource.onerror = () => {

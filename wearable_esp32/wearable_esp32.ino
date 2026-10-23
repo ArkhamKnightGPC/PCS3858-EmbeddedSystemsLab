@@ -106,7 +106,7 @@ bool readSingleMPUSample(MpuSample &sample) {
     sample.ay = rawAy / 16384.0f;
     sample.az = rawAz / 16384.0f;
 
-    // Requirement 1: ESP32 computes G-force magnitude per sample
+    // Corrected: Standard arithmetic multiplication
     sample.g_force = sqrt(sample.ax * sample.ax + sample.ay * sample.ay + sample.az * sample.az);
 
     return true;
@@ -188,7 +188,6 @@ void publishBatchPayload(bool batchFallVerdict, float minGInBatch) {
     snprintf(tempStr, sizeof(tempStr), "null");
   }
 
-  // Requirement 2: ESP32 sends verdict "fall" or "no fall"
   int offset = snprintf(payload, sizeof(payload),
     "{"
     "\"ir\":%ld,\"bpm\":%.1f,\"avg_bpm\":%d,\"finger_detected\":%s,"
@@ -222,11 +221,10 @@ void checkButtonPress() {
   }
 
   if ((millis() - lastDebounceTime) > DEBOUNCE_DELAY) {
-    // Button pressed (LOW because of INPUT_PULLUP)
     if (reading == LOW && activeFallAlert) {
       activeFallAlert = false;
-      digitalWrite(LED_PIN, LOW); // Turn off LED
-      sendCancelMessage();        // Requirement 4: Cancel detected fall
+      digitalWrite(LED_PIN, LOW); // Turning off LED indicator
+      sendCancelMessage();        // Sending cancellation to Pi
     }
   }
 
@@ -264,7 +262,7 @@ void setup() {
 
 void loop() {
   maintainNetworkConnections();
-  checkButtonPress(); // Continuous button polling
+  checkButtonPress();
 
   unsigned long currentMillis = millis();
 
@@ -306,11 +304,10 @@ void loop() {
           }
         }
 
-        // Threshold check: G-force drops below 0.3g
         if (minG <= 0.3f) {
           batchFallVerdict = true;
           activeFallAlert = true;
-          digitalWrite(LED_PIN, HIGH); // Requirement 5: Glow LED to await confirmation
+          digitalWrite(LED_PIN, HIGH);
         }
 
         readNtcTemperature();
