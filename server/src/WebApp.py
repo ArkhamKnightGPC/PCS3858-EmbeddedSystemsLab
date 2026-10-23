@@ -37,6 +37,9 @@ class WebApp:
             "finger_detected": False,
             "temperature_c": None,
             "temperature_valid": False,
+            "accel": None,
+            "gyro": None,
+            "mpu_valid": False,
             "last_update": None,
         }
 
@@ -52,6 +55,19 @@ class WebApp:
             raise ValueError(f"{field} must be finite")
         return float(value)
 
+    def _vector3(self, payload: dict[str, Any], field: str) -> dict[str, float] | None:
+        obj = payload.get(field)
+        if obj is None:
+            return None
+        if not isinstance(obj, dict):
+            raise TypeError(f"{field} must be a dictionary")
+
+        return {
+            "x": round(self._number(obj, "x"), 2),
+            "y": round(self._number(obj, "y"), 2),
+            "z": round(self._number(obj, "z"), 2),
+        }
+
     def update_telemetry(self, payload: dict[str, Any]) -> None:
         """Validate and atomically store one wearable MQTT message."""
         ir = self._number(payload, "ir")
@@ -60,16 +76,24 @@ class WebApp:
 
         finger_detected = payload.get("finger_detected")
         temperature_valid = payload.get("temperature_valid")
+        mpu_valid = payload.get("mpu_valid", False)
+
         if not isinstance(finger_detected, bool):
             raise TypeError("finger_detected must be a boolean")
         if not isinstance(temperature_valid, bool):
             raise TypeError("temperature_valid must be a boolean")
+        if not isinstance(mpu_valid, bool):
+            raise TypeError("mpu_valid must be a boolean")
 
         temperature = payload.get("temperature_c")
         if temperature_valid:
             temperature = self._number(payload, "temperature_c")
         elif temperature is not None:
             raise ValueError("temperature_c must be null when it is invalid")
+
+        # Parse Accelerometer and Gyroscope vectors if MPU6050 data is marked valid
+        accel = self._vector3(payload, "accel") if mpu_valid else None
+        gyro = self._vector3(payload, "gyro") if mpu_valid else None
 
         sample = {
             "ir": int(ir),
@@ -78,6 +102,9 @@ class WebApp:
             "finger_detected": finger_detected,
             "temperature_c": round(temperature, 1) if temperature is not None else None,
             "temperature_valid": temperature_valid,
+            "accel": accel,
+            "gyro": gyro,
+            "mpu_valid": mpu_valid,
             "last_update": datetime.now().astimezone().strftime("%H:%M:%S"),
         }
 
