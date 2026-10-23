@@ -211,6 +211,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 mpuSeismoStatus.className = "status-badge offline";
                 mpuSeismoStatus.innerText = "IMU Inativa";
             }
+            if (accelXVal) accelXVal.innerText = "--";
+            if (accelYVal) accelYVal.innerText = "--";
+            if (accelZVal) accelZVal.innerText = "--";
+            if (accelMagVal) accelMagVal.innerText = "--";
             return;
         }
 
@@ -222,6 +226,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 mpuSeismoStatus.className = "status-badge online";
                 mpuSeismoStatus.innerText = "Sismógrafo (50Hz Batch)";
             }
+        }
+
+        // Display the latest sample's numerical readouts from the batch
+        const lastSample = telemetry.accel_batch[telemetry.accel_batch.length - 1];
+        if (lastSample && lastSample.length >= 4) {
+            if (accelXVal) accelXVal.innerText = lastSample[0].toFixed(2);
+            if (accelYVal) accelYVal.innerText = lastSample[1].toFixed(2);
+            if (accelZVal) accelZVal.innerText = lastSample[2].toFixed(2);
+            if (accelMagVal) accelMagVal.innerText = lastSample[3].toFixed(2);
         }
 
         // Unpack all 50 samples into Chart.js
