@@ -206,40 +206,36 @@ document.addEventListener("DOMContentLoaded", () => {
     function updateSeismograph(telemetry) {
         if (!seismographChart) return;
 
-        if (!telemetry.mpu_valid || !telemetry.accel) {
+        if (!telemetry.mpu_valid || !telemetry.accel_batch || telemetry.accel_batch.length === 0) {
             if (mpuSeismoStatus) {
                 mpuSeismoStatus.className = "status-badge offline";
                 mpuSeismoStatus.innerText = "IMU Inativa";
             }
-            if (accelXVal) accelXVal.innerText = "--";
-            if (accelYVal) accelYVal.innerText = "--";
-            if (accelZVal) accelZVal.innerText = "--";
-            if (accelMagVal) accelMagVal.innerText = "--";
             return;
         }
 
         if (mpuSeismoStatus) {
-            mpuSeismoStatus.className = "status-badge online";
-            mpuSeismoStatus.innerText = "Ativo";
+            if (telemetry.fall_detected) {
+                mpuSeismoStatus.className = "status-badge offline";
+                mpuSeismoStatus.innerText = `FALL DETECTED! (${telemetry.min_g_dip}g)`;
+            } else {
+                mpuSeismoStatus.className = "status-badge online";
+                mpuSeismoStatus.innerText = "Sismógrafo (50Hz Batch)";
+            }
         }
 
-        if (accelXVal) accelXVal.innerText = telemetry.accel.x.toFixed(2);
-        if (accelYVal) accelYVal.innerText = telemetry.accel.y.toFixed(2);
-        if (accelZVal) accelZVal.innerText = telemetry.accel.z.toFixed(2);
-        if (accelMagVal) accelMagVal.innerText = (telemetry.accel_magnitude ?? 0).toFixed(2);
+        // Unpack all 50 samples into Chart.js
+        telemetry.accel_batch.forEach((sample) => {
+            if (seismographChart.data.labels.length >= 100) { // Keep 2-second rolling window (100 samples)
+                seismographChart.data.labels.shift();
+                seismographChart.data.datasets.forEach((ds) => ds.data.shift());
+            }
 
-        const labels = seismographChart.data.labels;
-        if (labels.length > 0 && labels[labels.length - 1] === telemetry.last_update) return;
-
-        if (labels.length >= maximumSamples) {
-            labels.shift();
-            seismographChart.data.datasets.forEach((ds) => ds.data.shift());
-        }
-
-        labels.push(telemetry.last_update);
-        seismographChart.data.datasets[0].data.push(telemetry.accel.x);
-        seismographChart.data.datasets[1].data.push(telemetry.accel.y);
-        seismographChart.data.datasets[2].data.push(telemetry.accel.z);
+            seismographChart.data.labels.push(""); // Time tick
+            seismographChart.data.datasets[0].data.push(sample[0]); // X
+            seismographChart.data.datasets[1].data.push(sample[1]); // Y
+            seismographChart.data.datasets[2].data.push(sample[2]); // Z
+        });
 
         seismographChart.update("none");
     }

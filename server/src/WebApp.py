@@ -11,7 +11,7 @@ from flask import Flask, Response, render_template, stream_with_context
 
 
 class WebApp:
-    """Flask dashboard backed by the latest MQTT telemetry sample."""
+    """Flask dashboard backed by batched MQTT telemetry."""
 
     STALE_AFTER_SECONDS = 5
 
@@ -37,9 +37,10 @@ class WebApp:
             "finger_detected": False,
             "temperature_c": None,
             "temperature_valid": False,
-            "accel": None,
-            "gyro": None,
-            "accel_magnitude": 0.0,
+            "accel_batch": [],
+            "accel_magnitude_batch": [],
+            "min_g_dip": 1.0,
+            "fall_detected": False,
             "mpu_valid": False,
             "last_update": None,
         }
@@ -56,19 +57,6 @@ class WebApp:
             raise ValueError(f"{field} must be finite")
         return float(value)
 
-    def _vector3(self, payload: dict[str, Any], field: str) -> dict[str, float] | None:
-        obj = payload.get(field)
-        if obj is None:
-            return None
-        if not isinstance(obj, dict):
-            raise TypeError(f"{field} must be a dictionary")
-
-        return {
-            "x": round(self._number(obj, "x"), 2),
-            "y": round(self._number(obj, "y"), 2),
-            "z": round(self._number(obj, "z"), 2),
-        }
-
     def update_telemetry(self, payload: dict[str, Any]) -> None:
         """Validate and atomically store one wearable MQTT message."""
         ir = self._number(payload, "ir")
@@ -79,27 +67,31 @@ class WebApp:
         temperature_valid = payload.get("temperature_valid")
         mpu_valid = payload.get("mpu_valid", False)
 
-        if not isinstance(finger_detected, bool):
-            raise TypeError("finger_detected must be a boolean")
-        if not isinstance(temperature_valid, bool):
-            raise TypeError("temperature_valid must be a boolean")
-        if not isinstance(mpu_valid, bool):
-            raise TypeError("mpu_valid must be a boolean")
+        if not isinstance(finger_detected, bool) or not isinstance(temperature_valid, bool):
+            raise TypeError("Boolean validation failed")
 
         temperature = payload.get("temperature_c")
         if temperature_valid:
             temperature = self._number(payload, "temperature_c")
-        elif temperature is not None:
-            raise ValueError("temperature_c must be null when it is invalid")
 
-        accel = self._vector3(payload, "accel") if mpu_valid else None
-        gyro = self._vector3(payload, "gyro") if mpu_valid else None
+        # Unpack batched accelerometer samples [[ax, ay, az], ...]
+        accel_batch = payload.get("accel_batch", [])
+        magnitude_batch = []
+        min_g_dip = 1.0
+        fall_detected = False
 
-        accel_magnitude = 0.0
-        if accel:
-            accel_magnitude = round(
-                math.sqrt(accel["x"]**2 + accel["y"]**2 + accel["z"]**2), 2
-            )
+        if mpu_valid and isinstance(accel_batch, list):
+            for sample in accel_batch:
+                if isinstance(sample, list) and len(sample) == 3:
+                    ax, ay, az = sample[0], sample[1], sample[2]
+                    mag = round(math.sqrt(ax**2 + ay**2 + az**2), 2)
+                    magnitude_batch.append(mag)
+
+            if magnitude_batch:
+                min_g_dip = min(magnitude_batch)
+                # Detection condition: Acceleration drops below 0.3g threshold
+                if min_g_dip <= 0.3:
+                    fall_detected = True
 
         sample = {
             "ir": int(ir),
@@ -108,9 +100,10 @@ class WebApp:
             "finger_detected": finger_detected,
             "temperature_c": round(temperature, 1) if temperature is not None else None,
             "temperature_valid": temperature_valid,
-            "accel": accel,
-            "gyro": gyro,
-            "accel_magnitude": accel_magnitude,
+            "accel_batch": accel_batch,
+            "accel_magnitude_batch": magnitude_batch,
+            "min_g_dip": min_g_dip,
+            "fall_detected": fall_detected,
             "mpu_valid": mpu_valid,
             "last_update": datetime.now().astimezone().strftime("%H:%M:%S"),
         }
@@ -145,7 +138,6 @@ class WebApp:
             snapshot = self.telemetry_snapshot()
             current_update = snapshot.get("last_update")
 
-            # Dispara SSE apenas quando houver novos dados ou mudança de estado de conexão
             if current_update != last_sent_update or snapshot.get("data_stale"):
                 last_sent_update = current_update
                 yield f"data: {json.dumps(snapshot)}\n\n"
