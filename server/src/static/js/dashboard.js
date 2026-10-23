@@ -49,6 +49,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const fingerText = document.getElementById("finger-text");
     const lastUpdate = document.getElementById("last-update");
 
+    // MPU6050 DOM Elements
+    const mpuStatus = document.getElementById("mpu-status");
+    const accelX = document.getElementById("accel-x");
+    const accelY = document.getElementById("accel-y");
+    const accelZ = document.getElementById("accel-z");
+    const gyroX = document.getElementById("gyro-x");
+    const gyroY = document.getElementById("gyro-y");
+    const gyroZ = document.getElementById("gyro-z");
+
     function displayNumber(value, digits = 0) {
         return typeof value === "number" ? value.toFixed(digits) : "--";
     }
@@ -96,6 +105,7 @@ document.addEventListener("DOMContentLoaded", () => {
         irValue.innerText = displayNumber(telemetry.ir);
         lastUpdate.innerText = telemetry.last_update ?? "--";
 
+        // Temperature status update
         if (telemetry.temperature_valid && typeof telemetry.temperature_c === "number") {
             temperatureValue.innerText = telemetry.temperature_c.toFixed(1);
             temperatureStatus.innerText = "Valid sensor reading";
@@ -104,6 +114,27 @@ document.addEventListener("DOMContentLoaded", () => {
             temperatureStatus.innerText = "Temperature reading out of bounds";
         }
 
+        // MPU6050 Motion status update
+        if (telemetry.mpu_valid && telemetry.accel && telemetry.gyro) {
+            mpuStatus.innerText = "IMU Active";
+            accelX.innerText = displayNumber(telemetry.accel.x, 2);
+            accelY.innerText = displayNumber(telemetry.accel.y, 2);
+            accelZ.innerText = displayNumber(telemetry.accel.z, 2);
+
+            gyroX.innerText = displayNumber(telemetry.gyro.x, 2);
+            gyroY.innerText = displayNumber(telemetry.gyro.y, 2);
+            gyroZ.innerText = displayNumber(telemetry.gyro.z, 2);
+        } else {
+            mpuStatus.innerText = "IMU offline or invalid reading";
+            accelX.innerText = "--";
+            accelY.innerText = "--";
+            accelZ.innerText = "--";
+            gyroX.innerText = "--";
+            gyroY.innerText = "--";
+            gyroZ.innerText = "--";
+        }
+
+        // Finger detection status update
         if (telemetry.last_update === null) {
             fingerBox.className = "alert-box alert-warning";
             fingerText.innerText = "Waiting for data";

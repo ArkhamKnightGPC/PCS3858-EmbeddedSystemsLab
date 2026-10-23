@@ -48,6 +48,48 @@
             <p id="temp-status" class="detail-text">Waiting for a valid reading</p>
         </section>
 
+        <!-- NEW: Motion & Orientation (MPU6050) Card -->
+        <section class="card">
+            <h2>Motion & Orientation (MPU6050)</h2>
+            <p id="mpu-status" class="detail-text">Waiting for IMU reading</p>
+            
+            <div class="metrics-section">
+                <h3>Accelerometer (g)</h3>
+                <div class="metrics-row">
+                    <div class="metric-block">
+                        <span class="metric-label">X</span>
+                        <span id="accel-x" class="metric">--</span>
+                    </div>
+                    <div class="metric-block">
+                        <span class="metric-label">Y</span>
+                        <span id="accel-y" class="metric">--</span>
+                    </div>
+                    <div class="metric-block">
+                        <span class="metric-label">Z</span>
+                        <span id="accel-z" class="metric">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metrics-section" style="margin-top: 15px;">
+                <h3>Gyroscope (°/s)</h3>
+                <div class="metrics-row">
+                    <div class="metric-block">
+                        <span class="metric-label">X</span>
+                        <span id="gyro-x" class="metric">--</span>
+                    </div>
+                    <div class="metric-block">
+                        <span class="metric-label">Y</span>
+                        <span id="gyro-y" class="metric">--</span>
+                    </div>
+                    <div class="metric-block">
+                        <span class="metric-label">Z</span>
+                        <span id="gyro-z" class="metric">--</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <section class="card">
             <h2>Sensor Status</h2>
             <div id="finger-box" class="alert-box alert-warning">
