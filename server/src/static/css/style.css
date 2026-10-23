@@ -122,3 +122,28 @@ h2 { margin-bottom: 20px; font-size: 1.15rem; }
     .dashboard-grid { grid-template-columns: 1fr; }
     .card-wide { grid-column: auto; }
 }
+
+.pitch-line {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90px;
+  height: 2px;
+  background-color: rgba(255, 255, 255, 0.85);
+}
+
+.pitch-line.center {
+  width: 140px;
+  height: 2px;
+  background-color: #ffffff;
+}
+
+.pitch-line span {
+  position: absolute;
+  right: -28px;
+  top: -7px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: bold;
+  font-family: sans-serif;
+}

@@ -40,54 +40,108 @@
             </div>
         </section>
 
-        <section class="card">
-            <h2>Skin Temperature</h2>
-            <div class="metric-large">
-                <span id="temp-val">--</span><span class="unit"> °C</span>
+        <section class="card card-wide">
+            <h2>Skin Temperature History</h2>
+            <div class="metrics-row" style="margin-bottom: 10px;">
+                <div class="metric-block">
+                    <span class="metric-label">Current Temp</span>
+                    <span id="temp-val" class="metric">--</span>
+                    <span class="unit">°C</span>
+                </div>
+                <div class="metric-block" style="flex-grow: 1; align-self: center;">
+                    <p id="temp-status" class="detail-text" style="margin: 0;">Waiting for a valid reading</p>
+                </div>
             </div>
-            <p id="temp-status" class="detail-text">Waiting for a valid reading</p>
+            <div class="chart-container" style="position: relative; height: 180px; width: 100%;">
+                <canvas id="temperatureChart"></canvas>
+            </div>
         </section>
 
         <!-- NEW: Motion & Orientation (MPU6050) Card -->
-        <section class="card">
-            <h2>Attitude Indicator (Attitude Gauge)</h2>
-            <div style="position: relative; width: 220px; height: 220px; margin: 0 auto; border-radius: 50%; overflow: hidden; border: 4px solid #333; background: #68b2d8;">
-                <!-- Sky / Ground Horizon Layer -->
-                <div id="horizon-sky-ground" style="position: absolute; top: -110px; left: -110px; width: 440px; height: 440px; transition: transform 0.2s ease-out;">
-                    <div style="width: 100%; height: 50%; background-color: #3b82f6;"></div> <!-- Sky -->
-                    <div style="width: 100%; height: 50%; background-color: #855223; border-top: 2px solid white;"></div> <!-- Ground -->
+        <section class="card card-wide" style="padding: 0; overflow: hidden; background: #000; color: #fff;">
+            <div id="pfd-container" style="position: relative; width: 100%; height: 420px; overflow: hidden; font-family: monospace, sans-serif; user-select: none;">
+
+                <!-- 1. FULL BACKGROUND HORIZON (BLUE / BROWN) -->
+                <div id="pfd-background" style="position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; transition: transform 0.1s linear;">
+                <div style="width: 100%; height: 50%; background-color: #3172e6;"></div>
+                <div style="width: 100%; height: 50%; background-color: #7a4212; border-top: 2px solid #ffffff;"></div>
                 </div>
 
-                <!-- Static Aircraft Crosshair Overlay -->
-                <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;" viewBox="0 0 100 100">
-                    <!-- Center Dot and Wings -->
-                    <circle cx="50" cy="50" r="3" fill="#fbbf24" />
-                    <line x1="20" y1="50" x2="40" y2="50" stroke="#fbbf24" stroke-width="3" />
-                    <line x1="60" y1="50" x2="80" y2="50" stroke="#fbbf24" stroke-width="3" />
-                    <line x1="40" y1="50" x2="40" y2="55" stroke="#fbbf24" stroke-width="3" />
-                    <line x1="60" y1="50" x2="60" y2="55" stroke="#fbbf24" stroke-width="3" />
+                <!-- 2. CENTRAL ATTITUDE SPHERE & PITCH LADDER -->
+                <div id="pfd-sphere" style="position: absolute; top: 50%; left: 50%; width: 280px; height: 280px; transform: translate(-50%, -50%); border-radius: 50%; border: 2px solid rgba(0,0,0,0.8); overflow: hidden; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">
+
+                <!-- Moving Pitch Ladder inside Sphere -->
+                <div id="pfd-pitch-ladder" style="position: absolute; top: 50%; left: 0; width: 100%; height: 0; transition: transform 0.1s linear;">
+                    <!-- Pitch Scale Marks (-20 to +20) -->
+                    <div class="pitch-line pos" style="bottom: 80px;"><span>20</span></div>
+                    <div class="pitch-line pos" style="bottom: 60px;"><span>15</span></div>
+                    <div class="pitch-line pos" style="bottom: 40px;"><span>10</span></div>
+                    <div class="pitch-line pos" style="bottom: 20px;"><span>5</span></div>
+
+                    <div class="pitch-line center" style="bottom: 0px;"><span>0</span></div>
+
+                    <div class="pitch-line neg" style="top: 20px;"><span>-5</span></div>
+                    <div class="pitch-line neg" style="top: 40px;"><span>-10</span></div>
+                    <div class="pitch-line neg" style="top: 60px;"><span>-15</span></div>
+                    <div class="pitch-line neg" style="top: 80px;"><span>-20</span></div>
+                </div>
+
+                <!-- Orange Dynamic Wings (Fixed Reference) -->
+                <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;" viewBox="0 0 280 280">
+                    <!-- Left Wing -->
+                    <line x1="75" y1="110" x2="120" y2="150" stroke="#ff8c00" stroke-width="4" stroke-linecap="round" />
+                    <!-- Right Wing -->
+                    <line x1="205" y1="170" x2="160" y2="130" stroke="#ff8c00" stroke-width="4" stroke-linecap="round" />
+                    <!-- Center Dot -->
+                    <circle cx="140" cy="140" r="3" fill="#ff8c00" />
                 </svg>
-            </div>
+                </div>
 
-            <!-- Telemetry Readouts -->
-            <div class="metrics-row" style="margin-top: 15px;">
-                <div class="metric-block">
-                    <span class="metric-label">Pitch</span>
-                    <span id="pitch-val" class="metric">--</span>
-                    <span class="unit">°</span>
+                <!-- 3. DIAL TICKS & DEGREE LABELS -->
+                <svg style="position: absolute; top: 50%; left: 50%; width: 380px; height: 380px; transform: translate(-50%, -50%); pointer-events: none;" viewBox="0 0 380 380">
+                <!-- Roll Pointer Triangle (Rotates around dial) -->
+                <g id="pfd-roll-pointer" style="transform-origin: 190px 190px; transition: transform 0.1s linear;">
+                    <polygon points="190,42 181,57 199,57" fill="none" stroke="#ff8c00" stroke-width="3" />
+                </g>
+
+                <!-- Fixed Outer Ring Ticks (-75 to +105) -->
+                <g fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">
+                    <text x="190" y="25">0</text>
+                    <text x="235" y="38">15</text>
+                    <text x="280" y="66">30</text>
+                    <text x="312" y="105">45</text>
+                    <text x="338" y="152">60</text>
+                    <text x="345" y="202">75</text>
+                    <text x="338" y="252">90</text>
+                    <text x="312" y="298">105</text>
+                    <text x="280" y="335">120</text>
+                    <text x="235" y="360">135</text>
+                    <text x="190" y="372">180</text>
+                    <text x="145" y="360">165</text>
+                    <text x="100" y="335">150</text>
+                    <text x="68" y="298">135</text>
+                    <text x="42" y="252">210</text>
+                    <text x="35" y="202">225</text>
+                    <text x="42" y="152">240</text>
+                    <text x="68" y="105">255</text>
+                    <text x="100" y="66">-60</text>
+                    <text x="145" y="38">-15</text>
+                </g>
+                </svg>
+
+                <!-- 4. BOTTOM CORNER TELEMETRY TEXT -->
+                <div style="position: absolute; bottom: 20px; left: 25px; text-shadow: 1px 1px 3px #000;">
+                <div style="font-size: 18px; font-weight: bold; color: #e0e0e0; letter-spacing: 1px;">ROLL</div>
+                <div id="pfd-roll-text" style="font-size: 28px; font-weight: bold; color: #ffffff;">0.00</div>
                 </div>
-                <div class="metric-block">
-                    <span class="metric-label">Roll</span>
-                    <span id="roll-val" class="metric">--</span>
-                    <span class="unit">°</span>
+
+                <div style="position: absolute; bottom: 20px; right: 25px; text-align: right; text-shadow: 1px 1px 3px #000;">
+                <div style="font-size: 18px; font-weight: bold; color: #e0e0e0; letter-spacing: 1px;">PITCH</div>
+                <div id="pfd-pitch-text" style="font-size: 28px; font-weight: bold; color: #ffffff;">0.00</div>
                 </div>
-                <div class="metric-block">
-                    <span class="metric-label">G-Force</span>
-                    <span id="g-val" class="metric">--</span>
-                    <span class="unit">g</span>
-                </div>
+
             </div>
-        </section>
+            </section>
 
         <section class="card">
             <h2>Sensor Status</h2>

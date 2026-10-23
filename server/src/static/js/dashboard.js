@@ -49,6 +49,66 @@ document.addEventListener("DOMContentLoaded", () => {
     const fingerText = document.getElementById("finger-text");
     const lastUpdate = document.getElementById("last-update");
 
+    const tempChartContext = document.getElementById("temperatureChart").getContext("2d");
+    const temperatureChart = new Chart(tempChartContext, {
+        type: "line",
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: "Temperature (°C)",
+                    data: [],
+                    borderColor: "#f39c12", // Warm amber / orange color
+                    backgroundColor: "rgba(243, 156, 18, 0.15)",
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3,
+                    spanGaps: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            scales: {
+                x: { title: { display: true, text: "Time" } },
+                y: {
+                    suggestedMin: 20,
+                    suggestedMax: 40,
+                    title: { display: true, text: "°C" }
+                }
+            }
+        }
+    });
+
+    function updateTempChart(telemetry) {
+        if (telemetry.last_update === null || telemetry.data_stale) return;
+
+        const labels = temperatureChart.data.labels;
+
+        // Prevent duplicate entries for the same timestamp
+        if (labels.length > 0 && labels[labels.length - 1] === telemetry.last_update) {
+            return;
+        }
+
+        // Maintain fixed window size
+        if (labels.length >= maximumSamples) {
+            labels.shift();
+            temperatureChart.data.datasets[0].data.shift();
+        }
+
+        labels.push(telemetry.last_update);
+
+        // Push valid temperature or null to create a gap in the line chart
+        const tempVal = (telemetry.temperature_valid && typeof telemetry.temperature_c === "number") 
+            ? telemetry.temperature_c 
+            : null;
+
+        temperatureChart.data.datasets[0].data.push(tempVal);
+        temperatureChart.update("none");
+    }
+
     // MPU6050 DOM Elements
     const mpuStatus = document.getElementById("mpu-status");
     const accelX = document.getElementById("accel-x");
@@ -120,21 +180,37 @@ document.addEventListener("DOMContentLoaded", () => {
         const rollVal = document.getElementById("roll-val");
         const gVal = document.getElementById("g-val");
 
+        // DOM Element References for PFD
+        const pfdBackground = document.getElementById("pfd-background");
+        const pfdPitchLadder = document.getElementById("pfd-pitch-ladder");
+        const pfdRollPointer = document.getElementById("pfd-roll-pointer");
+        const pfdRollText = document.getElementById("pfd-roll-text");
+        const pfdPitchText = document.getElementById("pfd-pitch-text");
+
+        function updatePFD(pitch, roll) {
+            // 1. Update text readouts
+            pfdRollText.innerText = roll.toFixed(2);
+            pfdPitchText.innerText = pitch.toFixed(2);
+
+            // 2. Rotate full-screen blue/brown background with Roll angle
+            pfdBackground.style.transform = `rotate(${-roll}deg)`;
+
+            // 3. Translate Pitch Ladder vertically (approx 4px per degree) and rotate with Roll
+            const pitchPixels = pitch * 4;
+            pfdPitchLadder.style.transform = `translateY(${pitchPixels}px) rotate(${-roll}deg)`;
+
+            // 4. Rotate top orange triangle pointer around dial
+            pfdRollPointer.style.transform = `rotate(${roll}deg)`;
+        }
+
+        // Inside eventSource.onmessage:
         if (telemetry.mpu_valid) {
-            const pitch = telemetry.pitch_deg ?? 0;
-            const roll = telemetry.roll_deg ?? 0;
-
-            pitchVal.innerText = pitch.toFixed(1);
-            rollVal.innerText = roll.toFixed(1);
-            gVal.innerText = (telemetry.accel_magnitude ?? 0).toFixed(2);
-
-            // Translate pitch (2px per degree) and rotate roll
-            const pitchOffset = pitch * 2; 
-            horizonLayer.style.transform = `translateY(${pitchOffset}px) rotate(${-roll}deg)`;
+            const pitch = telemetry.pitch_deg ?? 0.0;
+            const roll = telemetry.roll_deg ?? 0.0;
+            updatePFD(pitch, roll);
         } else {
-            pitchVal.innerText = "--";
-            rollVal.innerText = "--";
-            gVal.innerText = "--";
+            pfdRollText.innerText = "--";
+            pfdPitchText.innerText = "--";
         }
 
         // Finger detection status update
