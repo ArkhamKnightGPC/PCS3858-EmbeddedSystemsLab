@@ -1,39 +1,112 @@
-<section class="card">
-    <h2>Attitude Indicator (Attitude Gauge)</h2>
-    <div style="position: relative; width: 220px; height: 220px; margin: 0 auto; border-radius: 50%; overflow: hidden; border: 4px solid #333; background: #68b2d8;">
-        <!-- Sky / Ground Horizon Layer -->
-        <div id="horizon-sky-ground" style="position: absolute; top: -110px; left: -110px; width: 440px; height: 440px; transition: transform 0.2s ease-out;">
-            <div style="width: 100%; height: 50%; background-color: #3b82f6;"></div> <!-- Sky -->
-            <div style="width: 100%; height: 50%; background-color: #855223; border-top: 2px solid white;"></div> <!-- Ground -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCS3858 - Patient Health Monitor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header>
+        <div>
+            <h1>Wearable Health Central</h1>
+            <p class="subtitle">Finger wearable telemetry</p>
         </div>
+        <div id="connection-status" class="status-badge offline">Waiting for MQTT</div>
+    </header>
 
-        <!-- Static Aircraft Crosshair Overlay -->
-        <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;" viewBox="0 0 100 100">
-            <!-- Center Dot and Wings -->
-            <circle cx="50" cy="50" r="3" fill="#fbbf24" />
-            <line x1="20" y1="50" x2="40" y2="50" stroke="#fbbf24" stroke-width="3" />
-            <line x1="60" y1="50" x2="80" y2="50" stroke="#fbbf24" stroke-width="3" />
-            <line x1="40" y1="50" x2="40" y2="55" stroke="#fbbf24" stroke-width="3" />
-            <line x1="60" y1="50" x2="60" y2="55" stroke="#fbbf24" stroke-width="3" />
-        </svg>
-    </div>
+    <main class="dashboard-grid">
+        <section class="card card-wide">
+            <h2>Heart Rate</h2>
+            <div class="metrics-row">
+                <div class="metric-block">
+                    <span class="metric-label">Current</span>
+                    <span id="bpm-val" class="metric">--</span>
+                    <span class="unit">BPM</span>
+                </div>
+                <div class="metric-block">
+                    <span class="metric-label">Average</span>
+                    <span id="avg-bpm-val" class="metric">--</span>
+                    <span class="unit">BPM</span>
+                </div>
+                <div class="metric-block">
+                    <span class="metric-label">IR signal</span>
+                    <span id="ir-val" class="metric">--</span>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="heartRateChart"></canvas>
+            </div>
+        </section>
 
-    <!-- Telemetry Readouts -->
-    <div class="metrics-row" style="margin-top: 15px;">
-        <div class="metric-block">
-            <span class="metric-label">Pitch</span>
-            <span id="pitch-val" class="metric">--</span>
-            <span class="unit">°</span>
-        </div>
-        <div class="metric-block">
-            <span class="metric-label">Roll</span>
-            <span id="roll-val" class="metric">--</span>
-            <span class="unit">°</span>
-        </div>
-        <div class="metric-block">
-            <span class="metric-label">G-Force</span>
-            <span id="g-val" class="metric">--</span>
-            <span class="unit">g</span>
-        </div>
-    </div>
-</section>
+        <section class="card">
+            <h2>Skin Temperature</h2>
+            <div class="metric-large">
+                <span id="temp-val">--</span><span class="unit"> °C</span>
+            </div>
+            <p id="temp-status" class="detail-text">Waiting for a valid reading</p>
+        </section>
+
+        <!-- NEW: Motion & Orientation (MPU6050) Card -->
+        <section class="card">
+            <h2>Attitude Indicator (Attitude Gauge)</h2>
+            <div style="position: relative; width: 220px; height: 220px; margin: 0 auto; border-radius: 50%; overflow: hidden; border: 4px solid #333; background: #68b2d8;">
+                <!-- Sky / Ground Horizon Layer -->
+                <div id="horizon-sky-ground" style="position: absolute; top: -110px; left: -110px; width: 440px; height: 440px; transition: transform 0.2s ease-out;">
+                    <div style="width: 100%; height: 50%; background-color: #3b82f6;"></div> <!-- Sky -->
+                    <div style="width: 100%; height: 50%; background-color: #855223; border-top: 2px solid white;"></div> <!-- Ground -->
+                </div>
+
+                <!-- Static Aircraft Crosshair Overlay -->
+                <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;" viewBox="0 0 100 100">
+                    <!-- Center Dot and Wings -->
+                    <circle cx="50" cy="50" r="3" fill="#fbbf24" />
+                    <line x1="20" y1="50" x2="40" y2="50" stroke="#fbbf24" stroke-width="3" />
+                    <line x1="60" y1="50" x2="80" y2="50" stroke="#fbbf24" stroke-width="3" />
+                    <line x1="40" y1="50" x2="40" y2="55" stroke="#fbbf24" stroke-width="3" />
+                    <line x1="60" y1="50" x2="60" y2="55" stroke="#fbbf24" stroke-width="3" />
+                </svg>
+            </div>
+
+            <!-- Telemetry Readouts -->
+            <div class="metrics-row" style="margin-top: 15px;">
+                <div class="metric-block">
+                    <span class="metric-label">Pitch</span>
+                    <span id="pitch-val" class="metric">--</span>
+                    <span class="unit">°</span>
+                </div>
+                <div class="metric-block">
+                    <span class="metric-label">Roll</span>
+                    <span id="roll-val" class="metric">--</span>
+                    <span class="unit">°</span>
+                </div>
+                <div class="metric-block">
+                    <span class="metric-label">G-Force</span>
+                    <span id="g-val" class="metric">--</span>
+                    <span class="unit">g</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Sensor Status</h2>
+            <div id="finger-box" class="alert-box alert-warning">
+                <strong id="finger-text">Waiting for data</strong>
+            </div>
+            <dl class="status-details">
+                <div>
+                    <dt>Last sample</dt>
+                    <dd id="last-update">--</dd>
+                </div>
+                <div>
+                    <dt>MQTT topic</dt>
+                    <dd>{{ mqtt_topic }}</dd>
+                </div>
+            </dl>
+        </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
