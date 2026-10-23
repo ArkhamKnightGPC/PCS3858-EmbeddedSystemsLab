@@ -58,38 +58,36 @@
         </section>
 
         <!-- NEW: Motion & Orientation (MPU6050) Card -->
-        <section class="card card-wide" style="background-color: #121212; color: #ffffff; padding: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <h2 style="margin: 0; color: #ffffff;">Aceleração Sismográfica (MPU6050)</h2>
-                <div id="mpu-seismo-status" class="status-badge" style="background: #333; color: #ccc;">Aguardando MPU</div>
+        <section class="card card-wide">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h2 style="margin: 0;">Sismógrafo de Aceleração (MPU6050)</h2>
+                <div id="mpu-seismo-status" class="status-badge offline">Aguardando MPU</div>
             </div>
 
-            <!-- Valores Atuais de Telemetria -->
             <div class="metrics-row" style="margin-bottom: 15px;">
                 <div class="metric-block">
-                    <span class="metric-label" style="color: #ffff00;">Eixo X</span>
+                    <span class="metric-label" style="color: #f1c40f;">Eixo X</span>
                     <span id="accel-x-val" class="metric">--</span>
                     <span class="unit">g</span>
                 </div>
                 <div class="metric-block">
-                    <span class="metric-label" style="color: #ff3333;">Eixo Y</span>
+                    <span class="metric-label" style="color: #e74c3c;">Eixo Y</span>
                     <span id="accel-y-val" class="metric">--</span>
                     <span class="unit">g</span>
                 </div>
                 <div class="metric-block">
-                    <span class="metric-label" style="color: #ff00ff;">Eixo Z</span>
+                    <span class="metric-label" style="color: #9b59b6;">Eixo Z</span>
                     <span id="accel-z-val" class="metric">--</span>
                     <span class="unit">g</span>
                 </div>
                 <div class="metric-block">
-                    <span class="metric-label">Magnitude Total</span>
+                    <span class="metric-label">Magnitude</span>
                     <span id="accel-mag-val" class="metric">--</span>
                     <span class="unit">g</span>
                 </div>
             </div>
 
-            <!-- Container do Gráfico Estilo Sismógrafo -->
-            <div class="chart-container" style="position: relative; height: 320px; width: 100%; background-color: #000000; border: 1px solid #333; border-radius: 4px; padding: 5px;">
+            <div class="chart-container" style="position: relative; height: 220px; width: 100%;">
                 <canvas id="seismographChart"></canvas>
             </div>
         </section>

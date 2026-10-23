@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
-    const maximumSamples = 30;
+    const maximumSamples = 20; // Reduzido para diminuir a carga de processamento
 
-    // --- 1. Gráfico de Frequência Cardíaca (BPM / Média) ---
+    // 1. Gráfico de Frequência Cardíaca
     const chartContext = document.getElementById("heartRateChart").getContext("2d");
     const heartRateChart = new Chart(chartContext, {
         type: "line",
@@ -15,7 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     backgroundColor: "rgba(231, 76, 60, 0.1)",
                     borderWidth: 2,
                     fill: true,
-                    tension: 0.3,
+                    tension: 0.2,
                     spanGaps: true
                 },
                 {
@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     borderWidth: 2,
                     borderDash: [6, 4],
                     fill: false,
-                    tension: 0.3,
+                    tension: 0.2,
                     spanGaps: true
                 }
             ]
@@ -34,6 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
             responsive: true,
             maintainAspectRatio: false,
             animation: false,
+            elements: { point: { radius: 0 } },
             scales: {
                 x: { title: { display: true, text: "Time" } },
                 y: { suggestedMin: 40, suggestedMax: 160 }
@@ -41,7 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // --- 2. Gráfico de Temperatura Corporal ---
+    // 2. Gráfico de Temperatura
     const tempChartContext = document.getElementById("temperatureChart").getContext("2d");
     const temperatureChart = new Chart(tempChartContext, {
         type: "line",
@@ -55,7 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     backgroundColor: "rgba(243, 156, 18, 0.15)",
                     borderWidth: 2,
                     fill: true,
-                    tension: 0.3,
+                    tension: 0.2,
                     spanGaps: true
                 }
             ]
@@ -64,18 +65,15 @@ document.addEventListener("DOMContentLoaded", () => {
             responsive: true,
             maintainAspectRatio: false,
             animation: false,
+            elements: { point: { radius: 0 } },
             scales: {
                 x: { title: { display: true, text: "Time" } },
-                y: {
-                    suggestedMin: 20,
-                    suggestedMax: 40,
-                    title: { display: true, text: "°C" }
-                }
+                y: { suggestedMin: 20, suggestedMax: 40, title: { display: true, text: "°C" } }
             }
         }
     });
 
-    // --- 3. Gráfico Sismográfico de Aceleração (MPU6050 X, Y, Z) ---
+    // 3. Gráfico Sismográfico do MPU6050 (Estilo Otimizado)
     const seismoCanvas = document.getElementById("seismographChart");
     let seismographChart = null;
 
@@ -89,27 +87,24 @@ document.addEventListener("DOMContentLoaded", () => {
                     {
                         label: "Eixo X (g)",
                         data: [],
-                        borderColor: "#ffff00", // Amarelo
+                        borderColor: "#f1c40f", // Amarelo harmonizado
                         borderWidth: 1.5,
-                        pointRadius: 0,
                         fill: false,
                         tension: 0.1
                     },
                     {
                         label: "Eixo Y (g)",
                         data: [],
-                        borderColor: "#ff3333", // Vermelho
+                        borderColor: "#e74c3c", // Vermelho harmonizado
                         borderWidth: 1.5,
-                        pointRadius: 0,
                         fill: false,
                         tension: 0.1
                     },
                     {
                         label: "Eixo Z (g)",
                         data: [],
-                        borderColor: "#ff00ff", // Magenta
+                        borderColor: "#9b59b6", // Roxo / Magenta harmonizado
                         borderWidth: 1.5,
-                        pointRadius: 0,
                         fill: false,
                         tension: 0.1
                     }
@@ -119,30 +114,25 @@ document.addEventListener("DOMContentLoaded", () => {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: false,
+                events: [], // Desabilita eventos de ponteiro/hover para economizar CPU
+                elements: { point: { radius: 0 } },
                 scales: {
                     x: {
-                        grid: { color: "rgba(255, 255, 255, 0.15)" },
-                        ticks: { color: "#888888" },
-                        title: { display: true, text: "Tempo", color: "#aaaaaa" }
+                        grid: { color: "rgba(0, 0, 0, 0.05)" },
+                        title: { display: true, text: "Tempo" }
                     },
                     y: {
                         suggestedMin: -2.0,
                         suggestedMax: 2.0,
-                        grid: { color: "rgba(255, 255, 255, 0.15)" },
-                        ticks: { color: "#888888" },
-                        title: { display: true, text: "Aceleração (g)", color: "#aaaaaa" }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        labels: { color: "#ffffff" }
+                        grid: { color: "rgba(0, 0, 0, 0.05)" },
+                        title: { display: true, text: "Aceleração (g)" }
                     }
                 }
             }
         });
     }
 
-    // Referências de Elementos do DOM
+    // Elementos DOM
     const connectionStatus = document.getElementById("connection-status");
     const bpmValue = document.getElementById("bpm-val");
     const averageBpmValue = document.getElementById("avg-bpm-val");
@@ -153,7 +143,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const fingerText = document.getElementById("finger-text");
     const lastUpdate = document.getElementById("last-update");
 
-    // Elementos DOM do Sismógrafo / MPU
     const accelXVal = document.getElementById("accel-x-val");
     const accelYVal = document.getElementById("accel-y-val");
     const accelZVal = document.getElementById("accel-z-val");
@@ -178,16 +167,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateHeartRateChart(telemetry) {
-        if (telemetry.last_update === null || telemetry.data_stale) return;
+        if (!telemetry.last_update || telemetry.data_stale) return;
 
         const labels = heartRateChart.data.labels;
-        if (labels.length > 0 && labels[labels.length - 1] === telemetry.last_update) {
-            return;
-        }
+        if (labels.length > 0 && labels[labels.length - 1] === telemetry.last_update) return;
 
         if (labels.length >= maximumSamples) {
             labels.shift();
-            heartRateChart.data.datasets.forEach((dataset) => dataset.data.shift());
+            heartRateChart.data.datasets.forEach((ds) => ds.data.shift());
         }
 
         labels.push(telemetry.last_update);
@@ -197,13 +184,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateTempChart(telemetry) {
-        if (telemetry.last_update === null || telemetry.data_stale) return;
+        if (!telemetry.last_update || telemetry.data_stale) return;
 
         const labels = temperatureChart.data.labels;
-
-        if (labels.length > 0 && labels[labels.length - 1] === telemetry.last_update) {
-            return;
-        }
+        if (labels.length > 0 && labels[labels.length - 1] === telemetry.last_update) return;
 
         if (labels.length >= maximumSamples) {
             labels.shift();
@@ -211,9 +195,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         labels.push(telemetry.last_update);
-
-        const tempVal = (telemetry.temperature_valid && typeof telemetry.temperature_c === "number") 
-            ? telemetry.temperature_c 
+        const tempVal = (telemetry.temperature_valid && typeof telemetry.temperature_c === "number")
+            ? telemetry.temperature_c
             : null;
 
         temperatureChart.data.datasets[0].data.push(tempVal);
@@ -225,8 +208,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (!telemetry.mpu_valid || !telemetry.accel) {
             if (mpuSeismoStatus) {
+                mpuSeismoStatus.className = "status-badge offline";
                 mpuSeismoStatus.innerText = "IMU Inativa";
-                mpuSeismoStatus.style.background = "#772222";
             }
             if (accelXVal) accelXVal.innerText = "--";
             if (accelYVal) accelYVal.innerText = "--";
@@ -236,21 +219,17 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (mpuSeismoStatus) {
-            mpuSeismoStatus.innerText = "Sismógrafo Ativo";
-            mpuSeismoStatus.style.background = "#1b5e20";
+            mpuSeismoStatus.className = "status-badge online";
+            mpuSeismoStatus.innerText = "Ativo";
         }
 
-        // Atualização dos valores numéricos dos eixos
         if (accelXVal) accelXVal.innerText = telemetry.accel.x.toFixed(2);
         if (accelYVal) accelYVal.innerText = telemetry.accel.y.toFixed(2);
         if (accelZVal) accelZVal.innerText = telemetry.accel.z.toFixed(2);
         if (accelMagVal) accelMagVal.innerText = (telemetry.accel_magnitude ?? 0).toFixed(2);
 
         const labels = seismographChart.data.labels;
-
-        if (labels.length > 0 && labels[labels.length - 1] === telemetry.last_update) {
-            return;
-        }
+        if (labels.length > 0 && labels[labels.length - 1] === telemetry.last_update) return;
 
         if (labels.length >= maximumSamples) {
             labels.shift();
@@ -265,7 +244,7 @@ document.addEventListener("DOMContentLoaded", () => {
         seismographChart.update("none");
     }
 
-    // --- Receptor de Eventos SSE ---
+    // Receptor SSE
     const eventSource = new EventSource("/chart-data");
 
     eventSource.onmessage = (event) => {
@@ -277,7 +256,6 @@ document.addEventListener("DOMContentLoaded", () => {
         irValue.innerText = displayNumber(telemetry.ir);
         lastUpdate.innerText = telemetry.last_update ?? "--";
 
-        // Atualização da Temperatura
         if (telemetry.temperature_valid && typeof telemetry.temperature_c === "number") {
             temperatureValue.innerText = telemetry.temperature_c.toFixed(1);
             temperatureStatus.innerText = "Valid sensor reading";
@@ -286,7 +264,6 @@ document.addEventListener("DOMContentLoaded", () => {
             temperatureStatus.innerText = "Temperature reading out of bounds";
         }
 
-        // Atualização do estado do Dedo
         if (telemetry.last_update === null) {
             fingerBox.className = "alert-box alert-warning";
             fingerText.innerText = "Waiting for data";
@@ -301,7 +278,6 @@ document.addEventListener("DOMContentLoaded", () => {
             fingerText.innerText = "No finger detected";
         }
 
-        // Atualização dos Gráficos
         updateHeartRateChart(telemetry);
         updateTempChart(telemetry);
         updateSeismograph(telemetry);

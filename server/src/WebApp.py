@@ -39,8 +39,6 @@ class WebApp:
             "temperature_valid": False,
             "accel": None,
             "gyro": None,
-            "pitch_deg": 0.0,
-            "roll_deg": 0.0,
             "accel_magnitude": 0.0,
             "mpu_valid": False,
             "last_update": None,
@@ -94,27 +92,14 @@ class WebApp:
         elif temperature is not None:
             raise ValueError("temperature_c must be null when it is invalid")
 
-        # Parse Accelerometer and Gyroscope vectors
         accel = self._vector3(payload, "accel") if mpu_valid else None
         gyro = self._vector3(payload, "gyro") if mpu_valid else None
 
-        # Calculate Pitch, Roll, and Total Acceleration Magnitude if MPU data is valid
-        pitch_deg = 0.0
-        roll_deg = 0.0
         accel_magnitude = 0.0
-
-        if mpu_valid and accel is not None:
-            ax, ay, az = accel["x"], accel["y"], accel["z"]
-            
-            accel_magnitude = round(math.sqrt(ax * ax + ay * ay + az * az), 2)
-
-            # Pitch = atan2(ay, az) * 180 / pi
-            # Roll  = atan2(-ax, sqrt(ay^2 + az^2)) * 180 / pi
-            pitch_rad = math.atan2(ay, az)
-            roll_rad = math.atan2(-ax, math.sqrt(ay * ay + az * az))
-
-            pitch_deg = round(math.degrees(pitch_rad), 1)
-            roll_deg = round(math.degrees(roll_rad), 1)
+        if accel:
+            accel_magnitude = round(
+                math.sqrt(accel["x"]**2 + accel["y"]**2 + accel["z"]**2), 2
+            )
 
         sample = {
             "ir": int(ir),
@@ -125,8 +110,6 @@ class WebApp:
             "temperature_valid": temperature_valid,
             "accel": accel,
             "gyro": gyro,
-            "pitch_deg": pitch_deg,
-            "roll_deg": roll_deg,
             "accel_magnitude": accel_magnitude,
             "mpu_valid": mpu_valid,
             "last_update": datetime.now().astimezone().strftime("%H:%M:%S"),
@@ -157,9 +140,17 @@ class WebApp:
         return render_template("index.html", mqtt_topic=self.mqtt_topic)
 
     def update_data(self) -> Iterator[str]:
+        last_sent_update = None
         while True:
-            yield f"data: {json.dumps(self.telemetry_snapshot())}\n\n"
-            time.sleep(1)
+            snapshot = self.telemetry_snapshot()
+            current_update = snapshot.get("last_update")
+
+            # Dispara SSE apenas quando houver novos dados ou mudança de estado de conexão
+            if current_update != last_sent_update or snapshot.get("data_stale"):
+                last_sent_update = current_update
+                yield f"data: {json.dumps(snapshot)}\n\n"
+
+            time.sleep(0.5)
 
     def chart_data(self) -> Response:
         response = Response(
