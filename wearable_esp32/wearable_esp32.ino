@@ -11,6 +11,10 @@ const uint8_t MPU6050_ADDR = 0x68;
 const uint8_t MPU6050_PWR_MGMT_1 = 0x6B;
 const uint8_t MPU6050_ACCEL_XOUT_H = 0x3B;
 
+// --- Pin Definitions for LED Button ---
+const int BUTTON_PIN = 13; // Connect button to GPIO 13 (Pull-up)
+const int LED_PIN = 12;    // Connect LED to GPIO 12
+
 // --- Network and MQTT Configuration ---
 const char *MQTT_BROKER = "10.68.33.243";
 const uint16_t MQTT_PORT = 1883;
@@ -24,8 +28,7 @@ unsigned long lastMqttConnectionAttempt = 0;
 const unsigned long WIFI_RECONNECT_INTERVAL = 10000;
 const unsigned long MQTT_RECONNECT_INTERVAL = 5000;
 
-// --- Hardware Pin Definitions ---
-const int adcPin = 34;
+const int adcPin = 34; // NTC 20k
 
 // --- NTC 20k Parameters ---
 const float R_REF = 20000.0;        
@@ -43,28 +46,33 @@ float beatsPerMinute = 0;
 int beatAvg = 0;
 long currentIrValue = 0;
 
-// --- MPU6050 Batching Variables ---
+// --- MPU6050 Batching & Fall Variables ---
 const int BATCH_SIZE = 50;
 int sampleIndex = 0;
 
 struct MpuSample {
   float ax, ay, az;
-  float gx, gy, gz;
+  float g_force; // Precomputed G-force magnitude per sample
 };
 
 MpuSample mpuBatch[BATCH_SIZE];
-
 bool mpuAvailable = false;
+bool activeFallAlert = false; // Tracks if LED should glow awaiting confirmation
 
 // --- Timing Control Variables ---
 unsigned long lastMaxReadTime = 0;
-const unsigned long MAX_READ_INTERVAL = 25; // 40 Hz Optical PPG sampling
+const unsigned long MAX_READ_INTERVAL = 25; // 40 Hz Optical PPG
 
 unsigned long lastMpuReadTime = 0;
-const unsigned long MPU_READ_INTERVAL = 20; // 50 Hz IMU sampling (dt = 20ms)
+const unsigned long MPU_READ_INTERVAL = 20; // 50 Hz IMU sampling
 
 float currentTempC = 0.0;
 bool validTempRead = false;
+
+// Button debounce variables
+unsigned long lastDebounceTime = 0;
+const unsigned long DEBOUNCE_DELAY = 50;
+int lastButtonState = HIGH;
 
 bool initMPU6050() {
   Wire.beginTransmission(MPU6050_ADDR);
@@ -81,28 +89,25 @@ bool readSingleMPUSample(MpuSample &sample) {
 
   Wire.beginTransmission(MPU6050_ADDR);
   Wire.write(MPU6050_ACCEL_XOUT_H);
-  if (Wire.endTransmission(false) != 0) {
-    return false;
-  }
+  if (Wire.endTransmission(false) != 0) return false;
 
   if (Wire.requestFrom((uint8_t)MPU6050_ADDR, (uint8_t)14) == 14) {
     int16_t rawAx = (Wire.read() << 8) | Wire.read();
     int16_t rawAy = (Wire.read() << 8) | Wire.read();
     int16_t rawAz = (Wire.read() << 8) | Wire.read();
 
-    Wire.read(); Wire.read(); // Skip MPU internal temp
+    Wire.read(); Wire.read(); // Skip temp
 
-    int16_t rawGx = (Wire.read() << 8) | Wire.read();
-    int16_t rawGy = (Wire.read() << 8) | Wire.read();
-    int16_t rawGz = (Wire.read() << 8) | Wire.read();
+    Wire.read(); Wire.read();
+    Wire.read(); Wire.read();
+    Wire.read(); Wire.read(); // Skip gyro
 
     sample.ax = rawAx / 16384.0f;
     sample.ay = rawAy / 16384.0f;
     sample.az = rawAz / 16384.0f;
 
-    sample.gx = rawGx / 131.0f;
-    sample.gy = rawGy / 131.0f;
-    sample.gz = rawGz / 131.0f;
+    // Requirement 1: ESP32 computes G-force magnitude per sample
+    sample.g_force = sqrt(sample.ax * sample.ax + sample.ay * sample.ay + sample.az * sample.az);
 
     return true;
   } else {
@@ -129,7 +134,6 @@ void readNtcTemperature() {
 
 void connectToWifi() {
   if (WiFi.status() == WL_CONNECTED) return;
-
   unsigned long now = millis();
   if (lastWifiConnectionAttempt != 0 && now - lastWifiConnectionAttempt < WIFI_RECONNECT_INTERVAL) return;
 
@@ -140,7 +144,6 @@ void connectToWifi() {
 
 void connectToMqtt() {
   if (WiFi.status() != WL_CONNECTED || mqttClient.connected()) return;
-
   unsigned long now = millis();
   if (lastMqttConnectionAttempt != 0 && now - lastMqttConnectionAttempt < MQTT_RECONNECT_INTERVAL) return;
 
@@ -149,9 +152,7 @@ void connectToMqtt() {
   char clientId[32];
   snprintf(clientId, sizeof(clientId), "wearable-finger-%04X", static_cast<unsigned int>(chipId & 0xFFFFULL));
 
-  if (mqttClient.connect(clientId, MQTT_USERNAME, MQTT_PASSWORD)) {
-    Serial.println("Connected to MQTT broker.");
-  }
+  mqttClient.connect(clientId, MQTT_USERNAME, MQTT_PASSWORD);
 }
 
 void maintainNetworkConnections() {
@@ -159,18 +160,25 @@ void maintainNetworkConnections() {
     connectToWifi();
     return;
   }
-
   connectToMqtt();
   if (mqttClient.connected()) {
     mqttClient.loop();
   }
 }
 
-void publishBatchPayload() {
+void sendCancelMessage() {
   if (!mqttClient.connected()) return;
 
-  // Buffer large enough for batch payload (~2.5 KB)
-  static char payload[3072]; 
+  char payload[256];
+  snprintf(payload, sizeof(payload),
+           "{\"fall_canceled\":true,\"message\":\"User canceled false positive via LED button\"}");
+  mqttClient.publish(MQTT_TOPIC, payload);
+}
+
+void publishBatchPayload(bool batchFallVerdict, float minGInBatch) {
+  if (!mqttClient.connected()) return;
+
+  static char payload[3072];
   const bool fingerDetected = currentIrValue >= 50000;
 
   char tempStr[16];
@@ -180,38 +188,61 @@ void publishBatchPayload() {
     snprintf(tempStr, sizeof(tempStr), "null");
   }
 
+  // Requirement 2: ESP32 sends verdict "fall" or "no fall"
   int offset = snprintf(payload, sizeof(payload),
     "{"
     "\"ir\":%ld,\"bpm\":%.1f,\"avg_bpm\":%d,\"finger_detected\":%s,"
     "\"temperature_c\":%s,\"temperature_valid\":%s,"
-    "\"mpu_valid\":%s,\"accel_batch\":[",
+    "\"mpu_valid\":%s,\"fall_verdict\":\"%s\",\"min_g_dip\":%.2f,"
+    "\"fall_canceled\":false,\"accel_batch\":[",
     currentIrValue, beatsPerMinute, beatAvg,
     fingerDetected ? "true" : "false",
     tempStr, validTempRead ? "true" : "false",
-    mpuAvailable ? "true" : "false"
+    mpuAvailable ? "true" : "false",
+    batchFallVerdict ? "fall" : "no fall",
+    minGInBatch
   );
 
-  // Append batched samples
   for (int i = 0; i < BATCH_SIZE; i++) {
     offset += snprintf(payload + offset, sizeof(payload) - offset,
-                       "[%.2f,%.2f,%.2f]%s",
-                       mpuBatch[i].ax, mpuBatch[i].ay, mpuBatch[i].az,
+                       "[%.2f,%.2f,%.2f,%.2f]%s",
+                       mpuBatch[i].ax, mpuBatch[i].ay, mpuBatch[i].az, mpuBatch[i].g_force,
                        (i < BATCH_SIZE - 1) ? "," : "");
   }
 
   snprintf(payload + offset, sizeof(payload) - offset, "]}");
-
   mqttClient.publish(MQTT_TOPIC, payload);
+}
+
+void checkButtonPress() {
+  int reading = digitalRead(BUTTON_PIN);
+
+  if (reading != lastButtonState) {
+    lastDebounceTime = millis();
+  }
+
+  if ((millis() - lastDebounceTime) > DEBOUNCE_DELAY) {
+    // Button pressed (LOW because of INPUT_PULLUP)
+    if (reading == LOW && activeFallAlert) {
+      activeFallAlert = false;
+      digitalWrite(LED_PIN, LOW); // Turn off LED
+      sendCancelMessage();        // Requirement 4: Cancel detected fall
+    }
+  }
+
+  lastButtonState = reading;
 }
 
 void setup() {
   Serial.begin(115200);
   delay(1000);
 
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+
   WiFi.mode(WIFI_STA);
   mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
-  
-  // Expand MQTT buffer to hold 3 KB batch payload
   mqttClient.setBufferSize(3072);
   connectToWifi();
 
@@ -219,7 +250,6 @@ void setup() {
   Wire.begin(21, 22);
 
   if (!particleSensor.begin(Wire, I2C_SPEED_FAST)) {
-    Serial.println("MAX30102 non-responsive!");
     while (1);
   }
 
@@ -229,12 +259,12 @@ void setup() {
 
   if (initMPU6050()) {
     mpuAvailable = true;
-    Serial.println("MPU6050 initialized!");
   }
 }
 
 void loop() {
   maintainNetworkConnections();
+  checkButtonPress(); // Continuous button polling
 
   unsigned long currentMillis = millis();
 
@@ -246,23 +276,19 @@ void loop() {
     if (checkForBeat(currentIrValue)) {
       long delta = currentMillis - lastBeat;
       lastBeat = currentMillis;
-
       beatsPerMinute = 60.0 / (delta / 1000.0);
 
       if (beatsPerMinute < 255 && beatsPerMinute > 20) {
         rates[rateSpot++] = (byte)beatsPerMinute;
         rateSpot %= RATE_SIZE;
-
         beatAvg = 0;
-        for (byte x = 0; x < RATE_SIZE; x++) {
-          beatAvg += rates[x];
-        }
+        for (byte x = 0; x < RATE_SIZE; x++) beatAvg += rates[x];
         beatAvg /= RATE_SIZE;
       }
     }
   }
 
-  // 2. High-speed MPU6050 Batch Sampling (50 Hz / dt = 20ms)
+  // 2. High-speed MPU6050 Batch Sampling (50 Hz)
   if (currentMillis - lastMpuReadTime >= MPU_READ_INTERVAL) {
     lastMpuReadTime = currentMillis;
 
@@ -270,11 +296,26 @@ void loop() {
     if (readSingleMPUSample(sample)) {
       mpuBatch[sampleIndex++] = sample;
 
-      // When 50 samples are collected, read temperature and publish batch
       if (sampleIndex >= BATCH_SIZE) {
+        float minG = 10.0;
+        bool batchFallVerdict = false;
+
+        for (int i = 0; i < BATCH_SIZE; i++) {
+          if (mpuBatch[i].g_force < minG) {
+            minG = mpuBatch[i].g_force;
+          }
+        }
+
+        // Threshold check: G-force drops below 0.3g
+        if (minG <= 0.3f) {
+          batchFallVerdict = true;
+          activeFallAlert = true;
+          digitalWrite(LED_PIN, HIGH); // Requirement 5: Glow LED to await confirmation
+        }
+
         readNtcTemperature();
-        publishBatchPayload();
-        sampleIndex = 0; // Reset batch buffer pointer
+        publishBatchPayload(batchFallVerdict, minG);
+        sampleIndex = 0;
       }
     }
   }

@@ -240,6 +240,26 @@ document.addEventListener("DOMContentLoaded", () => {
         seismographChart.update("none");
     }
 
+    function updateFallAlertState(telemetry) {
+        const alertBanner = document.getElementById("fall-alert-banner");
+        if (!alertBanner) return;
+
+        if (telemetry.fall_state === "WAITING_CONFIRMATION") {
+            alertBanner.className = "alert-box alert-warning";
+            alertBanner.innerHTML = "<strong>WAITING CONFIRMATION:</strong> Fall detected! Press LED button on wearable to cancel false alarm.";
+            alertBanner.style.display = "block";
+        } else if (telemetry.fall_state === "FULL_ALERT") {
+            alertBanner.className = "alert-box alert-danger";
+            alertBanner.innerHTML = "<strong>CRITICAL FALL ALERT!</strong> Emergency response triggered!";
+            alertBanner.style.display = "block";
+        } else {
+            alertBanner.style.display = "none";
+        }
+    }
+
+    // Call inside eventSource.onmessage:
+    updateFallAlertState(telemetry);
+
     // Receptor SSE
     const eventSource = new EventSource("/chart-data");
 
