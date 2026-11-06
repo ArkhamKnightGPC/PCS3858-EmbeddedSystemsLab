@@ -15,9 +15,14 @@
 #endif
 
 // --- Configuration MPU6050 ---
-const uint8_t MPU6050_ADDR = 0x68;
+const int I2C_SDA_PIN = 21;
+const int I2C_SCL_PIN = 22;
+const uint8_t MPU6050_ADDR_LOW = 0x68;
+const uint8_t MPU6050_ADDR_HIGH = 0x69;
 const uint8_t MPU6050_PWR_MGMT_1 = 0x6B;
 const uint8_t MPU6050_ACCEL_XOUT_H = 0x3B;
+const uint8_t MPU6050_WHO_AM_I = 0x75;
+uint8_t mpu6050Address = MPU6050_ADDR_LOW;
 
 // --- Pin Definitions for LED Button ---
 const int BUTTON_PIN = 13; // Connect button to GPIO 13 (Pull-up)
@@ -95,11 +100,55 @@ unsigned long lastDebounceTime = 0;
 const unsigned long DEBOUNCE_DELAY = 50;
 int lastButtonState = HIGH;
 
+void scanI2CBus() {
+  int found = 0;
+  Serial.print("I2C devices:");
+  for (uint8_t address = 1; address < 127; address++) {
+    Wire.beginTransmission(address);
+    if (Wire.endTransmission() == 0) {
+      Serial.printf(" 0x%02X", address);
+      found++;
+    }
+  }
+  if (found == 0) Serial.print(" none");
+  Serial.println();
+}
+
+bool readI2CRegister(uint8_t address, uint8_t reg, uint8_t &value) {
+  Wire.beginTransmission(address);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0 || Wire.requestFrom(address, (uint8_t)1) != 1) {
+    return false;
+  }
+  value = Wire.read();
+  return true;
+}
+
+bool findMPU6050() {
+  const uint8_t addresses[] = {MPU6050_ADDR_LOW, MPU6050_ADDR_HIGH};
+  for (uint8_t address : addresses) {
+    uint8_t whoAmI = 0;
+    if (readI2CRegister(address, MPU6050_WHO_AM_I, whoAmI) &&
+        (whoAmI == MPU6050_ADDR_LOW || whoAmI == MPU6050_ADDR_HIGH)) {
+      mpu6050Address = address;
+      return true;
+    }
+  }
+  return false;
+}
+
 bool initMPU6050() {
-  Wire.beginTransmission(MPU6050_ADDR);
+  if (!findMPU6050()) return false;
+
+  Wire.beginTransmission(mpu6050Address);
   Wire.write(MPU6050_PWR_MGMT_1);
   Wire.write(0x00);
-  return (Wire.endTransmission() == 0);
+  if (Wire.endTransmission() != 0) return false;
+
+  delay(10);
+  uint8_t whoAmI = 0;
+  return readI2CRegister(mpu6050Address, MPU6050_WHO_AM_I, whoAmI) &&
+         (whoAmI == MPU6050_ADDR_LOW || whoAmI == MPU6050_ADDR_HIGH);
 }
 
 bool readSingleMPUSample(MpuSample &sample) {
@@ -110,14 +159,14 @@ bool readSingleMPUSample(MpuSample &sample) {
     if (!mpuAvailable) return false;
   }
 
-  Wire.beginTransmission(MPU6050_ADDR);
+  Wire.beginTransmission(mpu6050Address);
   Wire.write(MPU6050_ACCEL_XOUT_H);
   if (Wire.endTransmission(false) != 0) {
     mpuAvailable = false;
     return false;
   }
 
-  if (Wire.requestFrom((uint8_t)MPU6050_ADDR, (uint8_t)14) == 14) {
+  if (Wire.requestFrom(mpu6050Address, (uint8_t)14) == 14) {
     int16_t rawAx = (Wire.read() << 8) | Wire.read();
     int16_t rawAy = (Wire.read() << 8) | Wire.read();
     int16_t rawAz = (Wire.read() << 8) | Wire.read();
@@ -235,13 +284,11 @@ void publishBatchPayload(bool batchFallVerdict, float minGInBatch) {
     "{"
     "\"ir\":%ld,\"bpm\":%.1f,\"avg_bpm\":%d,\"finger_detected\":%s,"
     "\"temperature_c\":%s,\"temperature_valid\":%s,"
-    "\"heart_rate_valid\":%s,"
     "\"mpu_valid\":%s,\"fall_verdict\":\"%s\",\"min_g_dip\":%.2f,"
     "\"fall_canceled\":false,\"accel_batch\":[",
     currentIrValue, beatsPerMinute, beatAvg,
     fingerDetected ? "true" : "false",
     tempStr, validTempRead ? "true" : "false",
-    (maxAvailable && fingerDetected && rateCount > 0) ? "true" : "false",
     mpuAvailable ? "true" : "false",
     batchFallVerdict ? "fall" : "no fall",
     minGInBatch
@@ -338,22 +385,29 @@ void setup() {
   }
 
   analogReadResolution(12);
-  Wire.begin(21, 22);
+  if (!Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, I2C_SPEED_FAST)) {
+    Serial.println("I2C initialization failed.");
+  } else {
+    Serial.printf("I2C ready: SDA=%d, SCL=%d\n", I2C_SDA_PIN, I2C_SCL_PIN);
+    scanI2CBus();
+  }
 
   maxAvailable = particleSensor.begin(Wire, I2C_SPEED_FAST);
   if (maxAvailable) {
     particleSensor.setup(0x1F, 4, 2, 400, 411, 4096);
     particleSensor.setPulseAmplitudeRed(0x0A);
     particleSensor.setPulseAmplitudeGreen(0);
-    Serial.println("MAX30102 ready.");
+    Serial.println("MAX30102 ready at 0x57.");
   } else {
     Serial.println("MAX30102 unavailable; other telemetry will continue.");
   }
 
   if (initMPU6050()) {
     mpuAvailable = true;
+    Serial.printf("MPU6050 ready at 0x%02X.\n", mpu6050Address);
+  } else {
+    Serial.println("MPU6050 unavailable; publishing without acceleration.");
   }
-  Serial.println(mpuAvailable ? "MPU6050 ready." : "MPU6050 unavailable; publishing without acceleration.");
 }
 
 void loop() {

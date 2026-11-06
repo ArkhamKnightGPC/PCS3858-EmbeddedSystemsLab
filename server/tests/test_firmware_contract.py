@@ -33,11 +33,12 @@ void pinMode(int, int) {} void digitalWrite(int, int) {}
 int digitalRead(int) { return HIGH; }
 void analogReadResolution(int) {} int analogRead(int) { return 2048; }
 struct SerialStub {
-    void begin(int) {} void println(const char*) {}
+    void begin(int) {} void print(const char*) {}
+    void println() {} void println(const char*) {}
     template<class... T> void printf(const char*, T...) {}
 } Serial;
 struct WireStub {
-    void begin(int, int) {} void beginTransmission(int) {} void write(int) {}
+    bool begin(int, int, int) { return true; } void beginTransmission(int) {} void write(int) {}
     int endTransmission(bool = true) { return 4; }
     int requestFrom(uint8_t, uint8_t) { return 0; }
     int read() { return -1; } int available() { return 0; }
@@ -129,8 +130,12 @@ def test_sketch_publishes_without_sensors_and_serializes_full_batch(tmp_path):
     result = subprocess.run([str(binary)], check=True, timeout=5, capture_output=True, text=True)
     messages = [json.loads(line) for line in result.stdout.splitlines()]
     assert len(messages) == 3
+    assert set(messages[0]) == {
+        "ir", "bpm", "avg_bpm", "finger_detected", "temperature_c",
+        "temperature_valid", "mpu_valid", "fall_verdict", "min_g_dip",
+        "fall_canceled", "accel_batch",
+    }
     assert not messages[0]["mpu_valid"] and messages[0]["accel_batch"] == []
-    assert not messages[1]["heart_rate_valid"]
     assert len(messages[2]["accel_batch"]) == 50
     app = WebApp(log_path=tmp_path / "history.txt")
     for message in messages:
