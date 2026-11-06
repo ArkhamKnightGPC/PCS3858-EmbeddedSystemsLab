@@ -1,8 +1,18 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from MqttManager import MqttManager
 from WebApp import WebApp
+
+ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
+
+
+def load_environment() -> None:
+    # Keep exported/service variables authoritative and passwords literal.
+    load_dotenv(ENV_FILE, override=False, interpolate=False)
+
 
 def environment_port(name: str, default: int) -> int:
     value = os.getenv(name, str(default))
@@ -15,12 +25,13 @@ def environment_port(name: str, default: int) -> int:
     return port
 
 def main():
+    load_environment()
     mqtt_topic = os.getenv("MQTT_TOPIC", "wearable/finger/measurements")
     mqtt_username = os.getenv("MQTT_USERNAME")
     mqtt_password = os.getenv("MQTT_PASSWORD")
     if not mqtt_username or not mqtt_password:
         raise RuntimeError(
-            "MQTT_USERNAME and MQTT_PASSWORD must be configured before startup"
+            "Configure MQTT_USERNAME and MQTT_PASSWORD in server/.env or the environment before startup"
         )
 
     web_app = WebApp(

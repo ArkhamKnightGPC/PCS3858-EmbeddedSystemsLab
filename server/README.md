@@ -13,13 +13,20 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-To launch the application on the Raspberry Pi, run
+Na pasta `server/`, crie a configuração local a partir do modelo:
+
+```bash
+cp -n .env.example .env
+# Edite .env e preencha MQTT_USERNAME e MQTT_PASSWORD com as credenciais do Mosquitto.
+python3 src/main.py
 ```
-cd src/
-export MQTT_USERNAME="your_mqtt_username"
-export MQTT_PASSWORD="your_mqtt_password"
-python3 main.py
-```
+
+O servidor carrega `server/.env` automaticamente, independentemente do diretório
+de execução. O arquivo real é ignorado pelo Git; somente `.env.example` é
+versionado. Variáveis já exportadas no ambiente têm prioridade sobre o arquivo.
+As senhas são lidas literalmente, sem expansão de `${VAR}`. Coloque valores
+com espaços ou `#` entre aspas simples. Atualize as dependências com
+`pip install -r requirements.txt` antes de iniciar esta versão.
 
 The server connects to the local broker at `127.0.0.1:1883`, subscribes to
 `wearable/finger/measurements`, and makes the latest wearable sample available
