@@ -4,5 +4,5 @@ Flask
 itsdangerous
 Jinja2
 MarkupSafe
-paho-mqtt
+paho-mqtt>=2.1,<3
 Werkzeug

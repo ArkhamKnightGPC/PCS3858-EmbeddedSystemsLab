@@ -1,83 +1,58 @@
 import os
-import threading
-import time
-import json
-from datetime import datetime
+from pathlib import Path
 
 from MqttManager import MqttManager
 from WebApp import WebApp
 
-LOG_FILE_PATH = "telemetry_history.txt"
-
-def log_telemetry_to_file(telemetry: dict):
-    """Appends incoming valid telemetry records to a local text log file."""
-    # Format a ISO timestamp or readable datetime line
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    bpm = telemetry.get("bpm", 0.0)
-    avg_bpm = telemetry.get("avg_bpm", 0)
-    temp = telemetry.get("temperature_c", "N/A") if telemetry.get("temperature_valid") else "N/A"
-    finger = "YES" if telemetry.get("finger_detected") else "NO"
-    fall_state = telemetry.get("fall_state", "NORMAL")
-
-    log_entry = (
-        f"[{timestamp}] BPM: {bpm:.1f} | Avg BPM: {avg_bpm} | "
-        f"Temp: {temp}°C | Finger: {finger} | Status: {fall_state}\n"
-    )
-
-    with open(LOG_FILE_PATH, "a", encoding="utf-8") as f:
-        f.write(log_entry)
-
-
 def environment_port(name: str, default: int) -> int:
     value = os.getenv(name, str(default))
     try:
-        return int(value)
+        port = int(value)
     except ValueError as error:
         raise ValueError(f"{name} must be an integer, got {value!r}") from error
+    if not 1 <= port <= 65535:
+        raise ValueError(f"{name} must be between 1 and 65535")
+    return port
 
-def handle_mqtt_message(payload: dict):
-    web_app.update_telemetry(payload)
-    log_telemetry_to_file(payload)
-
-if __name__ == "__main__":
-    mqtt_topic = "wearable/finger/measurements"
-    mqtt_username = "USER"
-    mqtt_password = "PASS"
+def main():
+    mqtt_topic = os.getenv("MQTT_TOPIC", "wearable/finger/measurements")
+    mqtt_username = os.getenv("MQTT_USERNAME")
+    mqtt_password = os.getenv("MQTT_PASSWORD")
     if not mqtt_username or not mqtt_password:
         raise RuntimeError(
             "MQTT_USERNAME and MQTT_PASSWORD must be configured before startup"
         )
 
     web_app = WebApp(
-        host=os.getenv("WEB_HOST", "10.49.29.243"),
+        host=os.getenv("WEB_HOST", "0.0.0.0"),
         port=environment_port("WEB_PORT", 5000),
         debug=False,
         mqtt_topic=mqtt_topic,
+        log_path=os.getenv("TELEMETRY_LOG_PATH", str(Path(__file__).with_name("telemetry_history.txt"))),
     )
 
     mqtt_manager = MqttManager(
-        broker=os.getenv("MQTT_BROKER", "10.49.29.243"),
+        broker=os.getenv("MQTT_BROKER", "127.0.0.1"),
         port=environment_port("MQTT_PORT", 1883),
         sub_topic=mqtt_topic,
         username=mqtt_username,
         password=mqtt_password,
-        on_message=handle_mqtt_message,
+        on_message=web_app.update_telemetry,
         on_connection_change=web_app.set_mqtt_connected,
     )
     mqtt_manager.run_threaded()
-
-    flask_thread = threading.Thread(target=web_app.run, daemon=True)
-    flask_thread.start()
 
     print("\n--- Central Dashboard Server Running ---")
     print(f"Web Dashboard: http://localhost:{web_app.port}")
     print("Press Ctrl+C to exit.\n")
 
     try:
-        while True:
-            time.sleep(1)
+        web_app.run()
     except KeyboardInterrupt:
         print("\nShutting down server...")
     finally:
         mqtt_manager.stop()
+
+
+if __name__ == "__main__":
+    main()

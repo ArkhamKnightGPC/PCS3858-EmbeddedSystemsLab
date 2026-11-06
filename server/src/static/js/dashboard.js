@@ -1,9 +1,23 @@
 document.addEventListener("DOMContentLoaded", () => {
     const maximumSamples = 20;
+    document.querySelectorAll(".tab-btn").forEach(button => {
+        button.addEventListener("click", event => switchTab(button.dataset.tab, event));
+    });
+    document.getElementById("refresh-logs").addEventListener("click", fetchLogHistory);
+
+    function createChart(context, config) {
+        try {
+            if (typeof Chart !== "undefined") return new Chart(context, config);
+        } catch (error) {
+            console.error("Chart initialization failed", error);
+        }
+        document.getElementById("chart-status").hidden = false;
+        return null;
+    }
 
     // 1. Gráfico de Frequência Cardíaca
     const chartContext = document.getElementById("heartRateChart").getContext("2d");
-    const heartRateChart = new Chart(chartContext, {
+    const heartRateChart = createChart(chartContext, {
         type: "line",
         data: {
             labels: [],
@@ -44,7 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 2. Gráfico de Temperatura
     const tempChartContext = document.getElementById("temperatureChart").getContext("2d");
-    const temperatureChart = new Chart(tempChartContext, {
+    const temperatureChart = createChart(tempChartContext, {
         type: "line",
         data: {
             labels: [],
@@ -79,7 +93,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (seismoCanvas) {
         const seismoContext = seismoCanvas.getContext("2d");
-        seismographChart = new Chart(seismoContext, {
+        seismographChart = createChart(seismoContext, {
             type: "line",
             data: {
                 labels: [],
@@ -167,10 +181,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateHeartRateChart(telemetry) {
-        if (!telemetry.last_update || telemetry.data_stale) return;
+        if (!heartRateChart || !telemetry.last_update || telemetry.data_stale || !telemetry.mqtt_connected) return;
 
         const labels = heartRateChart.data.labels;
-        if (labels.length > 0 && labels[labels.length - 1] === telemetry.last_update) return;
+        if (heartRateChart.lastSampleId === telemetry.sample_id) return;
+        heartRateChart.lastSampleId = telemetry.sample_id;
 
         if (labels.length >= maximumSamples) {
             labels.shift();
@@ -178,16 +193,17 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         labels.push(telemetry.last_update);
-        heartRateChart.data.datasets[0].data.push(telemetry.bpm);
-        heartRateChart.data.datasets[1].data.push(telemetry.avg_bpm);
+        heartRateChart.data.datasets[0].data.push(telemetry.heart_rate_valid ? telemetry.bpm : null);
+        heartRateChart.data.datasets[1].data.push(telemetry.heart_rate_valid ? telemetry.avg_bpm : null);
         heartRateChart.update("none");
     }
 
     function updateTempChart(telemetry) {
-        if (!telemetry.last_update || telemetry.data_stale) return;
+        if (!temperatureChart || !telemetry.last_update || telemetry.data_stale || !telemetry.mqtt_connected) return;
 
         const labels = temperatureChart.data.labels;
-        if (labels.length > 0 && labels[labels.length - 1] === telemetry.last_update) return;
+        if (temperatureChart.lastSampleId === telemetry.sample_id) return;
+        temperatureChart.lastSampleId = telemetry.sample_id;
 
         if (labels.length >= maximumSamples) {
             labels.shift();
@@ -204,9 +220,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateSeismograph(telemetry) {
-        if (!seismographChart) return;
-
-        if (!telemetry.mpu_valid || !telemetry.accel_batch || telemetry.accel_batch.length === 0) {
+        if (!telemetry.mqtt_connected || telemetry.data_stale || !telemetry.mpu_valid || !telemetry.accel_batch || telemetry.accel_batch.length === 0) {
             if (mpuSeismoStatus) {
                 mpuSeismoStatus.className = "status-badge offline";
                 mpuSeismoStatus.innerText = "IMU Inativa";
@@ -224,7 +238,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 mpuSeismoStatus.innerText = `FALL DETECTED! (${telemetry.min_g_dip}g)`;
             } else {
                 mpuSeismoStatus.className = "status-badge online";
-                mpuSeismoStatus.innerText = "Sismógrafo (50Hz Batch)";
+                mpuSeismoStatus.innerText = "IMU ativa";
             }
         }
 
@@ -237,7 +251,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (accelMagVal) accelMagVal.innerText = lastSample[3].toFixed(2);
         }
 
-        // Unpack all 50 samples into Chart.js
+        // SSE repeats snapshots; append each acquired batch only once.
+        if (!seismographChart || seismographChart.lastSampleId === telemetry.sample_id) return;
+        seismographChart.lastSampleId = telemetry.sample_id;
         telemetry.accel_batch.forEach((sample) => {
             if (seismographChart.data.labels.length >= 100) {
                 seismographChart.data.labels.shift();
@@ -263,7 +279,7 @@ document.addEventListener("DOMContentLoaded", () => {
             alertBanner.style.display = "block";
         } else if (telemetry.fall_state === "FULL_ALERT") {
             alertBanner.className = "alert-box alert-danger";
-            alertBanner.innerHTML = "<strong>CRITICAL FALL ALERT!</strong> Emergency response triggered!";
+            alertBanner.innerHTML = "<strong>FALL ALERT:</strong> No cancellation received. Check on the wearer.";
             alertBanner.style.display = "block";
         } else {
             alertBanner.style.display = "none";
@@ -276,24 +292,26 @@ document.addEventListener("DOMContentLoaded", () => {
     eventSource.onmessage = (event) => {
         const telemetry = JSON.parse(event.data);
         setConnectionState(telemetry);
+        const fresh = telemetry.mqtt_connected && !telemetry.data_stale;
+        document.getElementById("log-status").hidden = !telemetry.log_error;
 
-        bpmValue.innerText = displayNumber(telemetry.bpm, 1);
-        averageBpmValue.innerText = displayNumber(telemetry.avg_bpm);
-        irValue.innerText = displayNumber(telemetry.ir);
+        bpmValue.innerText = fresh && telemetry.heart_rate_valid ? displayNumber(telemetry.bpm, 1) : "--";
+        averageBpmValue.innerText = fresh && telemetry.heart_rate_valid ? displayNumber(telemetry.avg_bpm) : "--";
+        irValue.innerText = fresh ? displayNumber(telemetry.ir) : "--";
         lastUpdate.innerText = telemetry.last_update ?? "--";
 
-        if (telemetry.temperature_valid && typeof telemetry.temperature_c === "number") {
+        if (fresh && telemetry.temperature_valid && typeof telemetry.temperature_c === "number") {
             temperatureValue.innerText = telemetry.temperature_c.toFixed(1);
             temperatureStatus.innerText = "Valid sensor reading";
         } else {
             temperatureValue.innerText = "--";
-            temperatureStatus.innerText = "Temperature reading out of bounds";
+            temperatureStatus.innerText = fresh ? "Temperature reading out of bounds" : "Waiting for fresh telemetry";
         }
 
         if (telemetry.last_update === null) {
             fingerBox.className = "alert-box alert-warning";
             fingerText.innerText = "Waiting for data";
-        } else if (telemetry.data_stale) {
+        } else if (!fresh) {
             fingerBox.className = "alert-box alert-warning";
             fingerText.innerText = "Telemetry is stale";
         } else if (telemetry.finger_detected) {
@@ -313,6 +331,16 @@ document.addEventListener("DOMContentLoaded", () => {
     eventSource.onerror = () => {
         connectionStatus.className = "status-badge offline";
         connectionStatus.innerText = "Dashboard disconnected";
+        [bpmValue, averageBpmValue, irValue, temperatureValue, accelXVal, accelYVal, accelZVal, accelMagVal].forEach(el => {
+            if (el) el.innerText = "--";
+        });
+        fingerText.innerText = "Waiting for fresh telemetry";
+        fingerBox.className = "alert-box alert-warning";
+        temperatureStatus.innerText = "Waiting for fresh telemetry";
+        if (mpuSeismoStatus) {
+            mpuSeismoStatus.className = "status-badge offline";
+            mpuSeismoStatus.innerText = "IMU sem dados atuais";
+        }
     };
 
     function switchTab(tabId, event) {
@@ -326,6 +354,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (tabId === "logs-tab") {
             fetchLogHistory();
+        } else {
+            [heartRateChart, temperatureChart, seismographChart].forEach(chart => chart?.resize());
         }
     }
 
@@ -334,18 +364,24 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!tableBody) return;
 
         fetch("/api/logs")
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.json();
+            })
             .then(data => {
                 if (!data || data.length === 0) {
                     tableBody.innerHTML = `<tr><td style="padding: 10px; text-align: center;">No log records found.</td></tr>`;
                     return;
                 }
 
-                tableBody.innerHTML = data.map(item => `
-                    <tr style="border-bottom: 1px solid #e9ecef; font-family: monospace;">
-                        <td style="padding: 8px 12px;">${item.raw}</td>
-                    </tr>
-                `).join("");
+                tableBody.replaceChildren();
+                data.forEach(item => {
+                    const row = document.createElement("tr");
+                    const cell = document.createElement("td");
+                    cell.textContent = item.raw;
+                    row.appendChild(cell);
+                    tableBody.appendChild(row);
+                });
             })
             .catch(err => {
                 console.error("Error loading log file:", err);

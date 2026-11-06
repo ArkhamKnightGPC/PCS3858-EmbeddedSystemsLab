@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
-import random
 import sys
+import uuid
 from collections.abc import Callable
 from typing import Any
 
@@ -38,16 +38,11 @@ class MqttManager:
         self.sub_topic = sub_topic
         self.on_message_callback = on_message
         self.on_connection_change = on_connection_change
-        self.client_id = f"rpi-central-{random.randint(0, 999_999):06d}"
-
-        try:
-            self.client = mqtt_client.Client(
-                mqtt_client.CallbackAPIVersion.VERSION2,
-                client_id=self.client_id,
-            )
-        except AttributeError:
-            # Compatibility with paho-mqtt versions older than 2.0.
-            self.client = mqtt_client.Client(client_id=self.client_id)
+        self.client_id = f"rpi-central-{uuid.uuid4().hex[:12]}"
+        self.client = mqtt_client.Client(
+            mqtt_client.CallbackAPIVersion.VERSION2,
+            client_id=self.client_id,
+        )
 
         if username:
             self.client.username_pw_set(username, password)
@@ -61,6 +56,7 @@ class MqttManager:
 
     def _setup_callbacks(self) -> None:
         def on_connect(client, userdata, flags, reason_code, properties=None):
+            self._set_connection_state(False)
             if reason_code == 0:
                 logger.info(
                     "Connected to MQTT broker at %s:%d",
@@ -69,8 +65,7 @@ class MqttManager:
                 )
                 result, _ = client.subscribe(self.sub_topic, qos=0)
                 if result == mqtt_client.MQTT_ERR_SUCCESS:
-                    logger.info("Subscribed to topic: %s", self.sub_topic)
-                    self._set_connection_state(True)
+                    logger.info("Subscription requested for %s; waiting for SUBACK", self.sub_topic)
                 else:
                     logger.error(
                         "Could not subscribe to %s (error %d)",
@@ -86,7 +81,24 @@ class MqttManager:
             self._set_connection_state(False)
             logger.warning("Disconnected from MQTT broker")
 
+        def on_subscribe(client, userdata, mid, reason_codes, properties=None):
+            accepted = bool(reason_codes) and all(not code.is_failure for code in reason_codes)
+            self._set_connection_state(accepted)
+            if accepted:
+                logger.info("Subscription confirmed: %s", self.sub_topic)
+            else:
+                logger.error("Broker rejected subscription to %s: %s", self.sub_topic, reason_codes)
+
+        def on_connect_fail(client, userdata):
+            self._set_connection_state(False)
+            logger.warning("MQTT TCP connection failed at %s:%d; retrying", self.broker, self.port)
+
         def on_message(client, userdata, message):
+            # The wearable publishes live, non-retained telemetry. Old retained
+            # falls/cancellations must not be replayed after a reconnect.
+            if message.retain or len(message.payload) > 16384:
+                logger.warning("Ignoring retained or oversized telemetry on %s", message.topic)
+                return
             try:
                 payload = json.loads(message.payload.decode("utf-8"))
             except (UnicodeDecodeError, json.JSONDecodeError) as error:
@@ -113,11 +125,13 @@ class MqttManager:
                 )
                 return
 
-            logger.info("Telemetry received on %s: %s", message.topic, payload)
+            logger.debug("Telemetry received on %s", message.topic)
 
         self.client.on_connect = on_connect
         self.client.on_disconnect = on_disconnect
         self.client.on_message = on_message
+        self.client.on_subscribe = on_subscribe
+        self.client.on_connect_fail = on_connect_fail
 
     def run_threaded(self) -> None:
         """Start paho's network loop and reconnect automatically if needed."""

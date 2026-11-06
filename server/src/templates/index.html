@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PCS3858 - Patient Health Monitor</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <header>
@@ -16,15 +16,12 @@
         <div id="connection-status" class="status-badge offline">Waiting for MQTT</div>
     </header>
 
-    <div class="tab-bar" style="margin-bottom: 20px;"></div>
-        <button class="tab-btn active" onclick="switchTab('realtime-tab', event)">📊 Real-Time Dashboard</button>
-        <button class="tab-btn" onclick="switchTab('logs-tab', event)">📜 Logs & History</button>
-        <style>
-            .spaced {
-                margin-bottom: 3cm; /* or px, em, rem */
-            }
-        </style>
+    <div class="tab-bar" style="margin-bottom: 20px;">
+        <button type="button" class="tab-btn active" data-tab="realtime-tab">📊 Real-Time Dashboard</button>
+        <button type="button" class="tab-btn" data-tab="logs-tab">📜 Logs & History</button>
     </div>
+    <p id="chart-status" class="detail-text" hidden>Charts unavailable. Live readings and history remain available.</p>
+    <p id="log-status" class="detail-text" hidden>History could not be saved. Check server logs and storage permissions.</p>
 
     <!-- Tab 2: Historical Logs Table -->
     <div id="logs-tab" class="tab-content" style="display: none;">
@@ -32,8 +29,8 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <h2>Historical Telemetry Logs</h2>
                 <div>
-                    <button onclick="fetchLogHistory()" class="btn">🔄 Refresh Logs</button>
-                    <a href="/download-logs" target="_blank"><button class="btn btn-download">📥 Download .txt File</button></a>
+                    <button type="button" id="refresh-logs" class="btn">🔄 Refresh Logs</button>
+                    <a href="/download-logs" class="btn btn-download">📥 Download .txt File</a>
                 </div>
             </div>
 

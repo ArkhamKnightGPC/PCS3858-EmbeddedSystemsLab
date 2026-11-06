@@ -2,6 +2,11 @@
 
 # Local wearable credentials
 wearable_esp32/secrets.h
+wearable_finger/secrets.h
+server/src/telemetry_history.txt
+server/tests/__pycache__/
+.pytest_cache/
+.pio/
 server/venv/
 server/src/__pycache__/
 datasheets/
