@@ -17,11 +17,14 @@
 // --- Configuration MPU6050 ---
 const int I2C_SDA_PIN = 21;
 const int I2C_SCL_PIN = 22;
+const uint32_t I2C_CLOCK_HZ = 100000;
 const uint8_t MPU6050_ADDR_LOW = 0x68;
 const uint8_t MPU6050_ADDR_HIGH = 0x69;
 const uint8_t MPU6050_PWR_MGMT_1 = 0x6B;
 const uint8_t MPU6050_ACCEL_XOUT_H = 0x3B;
 const uint8_t MPU6050_WHO_AM_I = 0x75;
+// This MPU6050-labeled module reports 0x70 but uses the compatible registers below.
+const uint8_t MPU_COMPATIBLE_DEVICE_ID_70 = 0x70;
 uint8_t mpu6050Address = MPU6050_ADDR_LOW;
 
 // --- Pin Definitions for LED Button ---
@@ -117,7 +120,7 @@ void scanI2CBus() {
 bool readI2CRegister(uint8_t address, uint8_t reg, uint8_t &value) {
   Wire.beginTransmission(address);
   Wire.write(reg);
-  if (Wire.endTransmission(false) != 0 || Wire.requestFrom(address, (uint8_t)1) != 1) {
+  if (Wire.endTransmission() != 0 || Wire.requestFrom(address, (uint8_t)1) != 1) {
     return false;
   }
   value = Wire.read();
@@ -128,8 +131,11 @@ bool findMPU6050() {
   const uint8_t addresses[] = {MPU6050_ADDR_LOW, MPU6050_ADDR_HIGH};
   for (uint8_t address : addresses) {
     uint8_t whoAmI = 0;
-    if (readI2CRegister(address, MPU6050_WHO_AM_I, whoAmI) &&
-        (whoAmI == MPU6050_ADDR_LOW || whoAmI == MPU6050_ADDR_HIGH)) {
+    if (readI2CRegister(address, MPU6050_WHO_AM_I, whoAmI)) {
+      Serial.printf("I2C 0x%02X WHO_AM_I=0x%02X.\n", address, whoAmI);
+    }
+    if (whoAmI == MPU6050_ADDR_LOW || whoAmI == MPU6050_ADDR_HIGH ||
+        whoAmI == MPU_COMPATIBLE_DEVICE_ID_70) {
       mpu6050Address = address;
       return true;
     }
@@ -148,7 +154,8 @@ bool initMPU6050() {
   delay(10);
   uint8_t whoAmI = 0;
   return readI2CRegister(mpu6050Address, MPU6050_WHO_AM_I, whoAmI) &&
-         (whoAmI == MPU6050_ADDR_LOW || whoAmI == MPU6050_ADDR_HIGH);
+         (whoAmI == MPU6050_ADDR_LOW || whoAmI == MPU6050_ADDR_HIGH ||
+          whoAmI == MPU_COMPATIBLE_DEVICE_ID_70);
 }
 
 bool readSingleMPUSample(MpuSample &sample) {
@@ -161,7 +168,7 @@ bool readSingleMPUSample(MpuSample &sample) {
 
   Wire.beginTransmission(mpu6050Address);
   Wire.write(MPU6050_ACCEL_XOUT_H);
-  if (Wire.endTransmission(false) != 0) {
+  if (Wire.endTransmission() != 0) {
     mpuAvailable = false;
     return false;
   }
@@ -307,6 +314,9 @@ void publishBatchPayload(bool batchFallVerdict, float minGInBatch) {
     return;
   }
   xQueueOverwrite(telemetryQueue, &message);
+  Serial.printf("Telemetry queued: IR=%ld BPM=%.1f samples=%d min_g=%.2f bytes=%u\n",
+                currentIrValue, beatsPerMinute, sampleIndex, minGInBatch,
+                static_cast<unsigned int>(offset));
 }
 
 // PubSubClient connect/loop can block. Only this task owns the network client;
@@ -385,14 +395,17 @@ void setup() {
   }
 
   analogReadResolution(12);
-  if (!Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, I2C_SPEED_FAST)) {
+  if (!Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, I2C_CLOCK_HZ)) {
     Serial.println("I2C initialization failed.");
   } else {
-    Serial.printf("I2C ready: SDA=%d, SCL=%d\n", I2C_SDA_PIN, I2C_SCL_PIN);
+    Serial.printf("I2C ready: SDA=%d (%s), SCL=%d (%s), clock=%lu Hz\n",
+                  I2C_SDA_PIN, digitalRead(I2C_SDA_PIN) ? "HIGH" : "LOW",
+                  I2C_SCL_PIN, digitalRead(I2C_SCL_PIN) ? "HIGH" : "LOW",
+                  static_cast<unsigned long>(I2C_CLOCK_HZ));
     scanI2CBus();
   }
 
-  maxAvailable = particleSensor.begin(Wire, I2C_SPEED_FAST);
+  maxAvailable = particleSensor.begin(Wire, I2C_CLOCK_HZ);
   if (maxAvailable) {
     particleSensor.setup(0x1F, 4, 2, 400, 411, 4096);
     particleSensor.setPulseAmplitudeRed(0x0A);
@@ -404,7 +417,7 @@ void setup() {
 
   if (initMPU6050()) {
     mpuAvailable = true;
-    Serial.printf("MPU6050 ready at 0x%02X.\n", mpu6050Address);
+    Serial.printf("MPU-compatible motion sensor ready at 0x%02X.\n", mpu6050Address);
   } else {
     Serial.println("MPU6050 unavailable; publishing without acceleration.");
   }
@@ -418,7 +431,7 @@ void loop() {
   // Retry a missing optical sensor without stopping the rest of the device.
   if (!maxAvailable && currentMillis - lastMaxInitAttempt >= 5000) {
     lastMaxInitAttempt = currentMillis;
-    maxAvailable = particleSensor.begin(Wire, I2C_SPEED_FAST);
+    maxAvailable = particleSensor.begin(Wire, I2C_CLOCK_HZ);
     if (maxAvailable) {
       particleSensor.setup(0x1F, 4, 2, 400, 411, 4096);
       particleSensor.setPulseAmplitudeRed(0x0A);
