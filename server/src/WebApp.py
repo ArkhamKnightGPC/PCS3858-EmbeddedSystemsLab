@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 from typing import Any, Iterator
 
-from flask import Flask, Response, render_template, stream_with_context
+from flask import Flask, Response, render_template, stream_with_context, jsonify, send_file
 
 
 class WebApp:
@@ -49,6 +49,29 @@ class WebApp:
 
         self.app.add_url_rule("/", "index", self.index)
         self.app.add_url_rule("/chart-data", "chart_data", self.chart_data)
+
+        self.app.add_url_rule("/api/logs", "get_logs", self.get_logs)
+        self.app.add_url_rule("/download-logs", "download_logs", self.download_logs)
+
+    def get_logs(self) -> Response:
+        """Returns parsed log history from the txt file as JSON."""
+        if not os.path.exists(LOG_FILE_PATH):
+            return jsonify([])
+
+        records = []
+        with open(LOG_FILE_PATH, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        for line in reversed(lines[-200:]):
+            records.append({"raw": line.strip()})
+
+        return jsonify(records)
+
+    def download_logs(self) -> Response:
+        """Allows downloading the raw .txt file."""
+        if os.path.exists(LOG_FILE_PATH):
+            return send_file(LOG_FILE_PATH, as_attachment=True, download_name="wearable_telemetry_history.txt")
+        return Response("Log file not found", status=404)
 
     @staticmethod
     def _number(payload: dict[str, Any], field: str) -> float:

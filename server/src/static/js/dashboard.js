@@ -314,4 +314,43 @@ document.addEventListener("DOMContentLoaded", () => {
         connectionStatus.className = "status-badge offline";
         connectionStatus.innerText = "Dashboard disconnected";
     };
+
+    function switchTab(tabId, event) {
+        document.querySelectorAll(".tab-content").forEach(el => el.style.display = "none");
+        document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
+
+        document.getElementById(tabId).style.display = "block";
+        if (event && event.currentTarget) {
+            event.currentTarget.classList.add("active");
+        }
+
+        if (tabId === "logs-tab") {
+            fetchLogHistory();
+        }
+    }
+
+    function fetchLogHistory() {
+        const tableBody = document.getElementById("log-table-body");
+        if (!tableBody) return;
+
+        fetch("/api/logs")
+            .then(response => response.json())
+            .then(data => {
+                if (!data || data.length === 0) {
+                    tableBody.innerHTML = `<tr><td style="padding: 10px; text-align: center;">No log records found.</td></tr>`;
+                    return;
+                }
+
+                tableBody.innerHTML = data.map(item => `
+                    <tr style="border-bottom: 1px solid #e9ecef; font-family: monospace;">
+                        <td style="padding: 8px 12px;">${item.raw}</td>
+                    </tr>
+                `).join("");
+            })
+            .catch(err => {
+                console.error("Error loading log file:", err);
+                tableBody.innerHTML = `<tr><td style="padding: 10px; color: red;">Failed to load log history.</td></tr>`;
+            });
+    }
+
 });

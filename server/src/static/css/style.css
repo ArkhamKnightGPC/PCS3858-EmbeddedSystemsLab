@@ -147,3 +147,47 @@ h2 { margin-bottom: 20px; font-size: 1.15rem; }
   font-weight: bold;
   font-family: sans-serif;
 }
+
+.tab-bar {
+    display: flex;
+    gap: 10px;
+    border-bottom: 2px solid #e0e0e0;
+    padding-bottom: 5px;
+}
+
+.tab-btn {
+    padding: 10px 20px;
+    border: none;
+    background: #f1f3f5;
+    cursor: pointer;
+    font-weight: bold;
+    border-radius: 5px 5px 0 0;
+    transition: background 0.2s;
+}
+
+.tab-btn.active {
+    background: #3498db;
+    color: white;
+}
+
+.btn {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 4px;
+    background-color: #2ecc71;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.btn-download {
+    background-color: #34495e;
+}
+
+.log-table tr:nth-child(even) {
+    background-color: #fdfdfd;
+}
+
+.log-table tr:hover {
+    background-color: #f1f5f9;
+}

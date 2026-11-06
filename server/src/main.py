@@ -1,9 +1,32 @@
 import os
 import threading
 import time
+import json
+from datetime import datetime
 
 from MqttManager import MqttManager
 from WebApp import WebApp
+
+LOG_FILE_PATH = "telemetry_history.txt"
+
+def log_telemetry_to_file(telemetry: dict):
+    """Appends incoming valid telemetry records to a local text log file."""
+    # Format a ISO timestamp or readable datetime line
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    bpm = telemetry.get("bpm", 0.0)
+    avg_bpm = telemetry.get("avg_bpm", 0)
+    temp = telemetry.get("temperature_c", "N/A") if telemetry.get("temperature_valid") else "N/A"
+    finger = "YES" if telemetry.get("finger_detected") else "NO"
+    fall_state = telemetry.get("fall_state", "NORMAL")
+
+    log_entry = (
+        f"[{timestamp}] BPM: {bpm:.1f} | Avg BPM: {avg_bpm} | "
+        f"Temp: {temp}°C | Finger: {finger} | Status: {fall_state}\n"
+    )
+
+    with open(LOG_FILE_PATH, "a", encoding="utf-8") as f:
+        f.write(log_entry)
 
 
 def environment_port(name: str, default: int) -> int:
@@ -13,6 +36,9 @@ def environment_port(name: str, default: int) -> int:
     except ValueError as error:
         raise ValueError(f"{name} must be an integer, got {value!r}") from error
 
+def handle_mqtt_message(payload: dict):
+    web_app.update_telemetry(payload)
+    log_telemetry_to_file(payload)
 
 if __name__ == "__main__":
     mqtt_topic = "wearable/finger/measurements"
@@ -36,7 +62,7 @@ if __name__ == "__main__":
         sub_topic=mqtt_topic,
         username=mqtt_username,
         password=mqtt_password,
-        on_message=web_app.update_telemetry,
+        on_message=handle_mqtt_message,
         on_connection_change=web_app.set_mqtt_connected,
     )
     mqtt_manager.run_threaded()

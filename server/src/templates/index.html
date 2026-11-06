@@ -16,6 +16,42 @@
         <div id="connection-status" class="status-badge offline">Waiting for MQTT</div>
     </header>
 
+    <div class="tab-bar" style="margin-bottom: 20px;"></div>
+        <button class="tab-btn active" onclick="switchTab('realtime-tab', event)">📊 Real-Time Dashboard</button>
+        <button class="tab-btn" onclick="switchTab('logs-tab', event)">📜 Logs & History</button>
+    </div>
+
+    <!-- Tab 1: Realtime View (Wrap your current charts inside this container) -->
+    <div id="realtime-tab" class="tab-content">
+        <!-- Existing Chart Cards go here -->
+    </div>
+
+    <!-- Tab 2: Historical Logs Table -->
+    <div id="logs-tab" class="tab-content" style="display: none;">
+        <div class="card" style="padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2>Historical Telemetry Logs</h2>
+                <div>
+                    <button onclick="fetchLogHistory()" class="btn">🔄 Refresh Logs</button>
+                    <a href="/download-logs" target="_blank"><button class="btn btn-download">📥 Download .txt File</button></a>
+                </div>
+            </div>
+
+            <div style="max-height: 500px; overflow-y: auto;">
+                <table class="log-table" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6; text-align: left;">
+                            <th style="padding: 10px;">Timestamp / Log Entry</th>
+                        </tr>
+                    </thead>
+                    <tbody id="log-table-body">
+                        <tr><td style="padding: 10px; text-align: center;">Loading log history...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <main class="dashboard-grid">
         <!-- NEW: Fall Alert Banner (Container for WAITING and FULL ALERT states) -->
         <div id="fall-alert-banner" class="alert-box" style="display: none; grid-column: 1 / -1; margin-bottom: 15px;"></div>

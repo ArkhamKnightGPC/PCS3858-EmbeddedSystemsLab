@@ -16,7 +16,7 @@ const int BUTTON_PIN = 13; // Connect button to GPIO 13 (Pull-up)
 const int LED_PIN = 12;    // Connect LED to GPIO 12
 
 // --- Network and MQTT Configuration ---
-const char *MQTT_BROKER = "10.68.33.243";
+const char *MQTT_BROKER = "10.197.100.243";
 const uint16_t MQTT_PORT = 1883;
 const char *MQTT_TOPIC = "wearable/finger/measurements";
 
