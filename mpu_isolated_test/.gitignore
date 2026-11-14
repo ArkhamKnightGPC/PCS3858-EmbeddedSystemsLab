@@ -1,0 +1,5 @@
+.pio/
+logs/
+tests/firmware_test
+__pycache__/
+tests/simulated_serial.jsonl

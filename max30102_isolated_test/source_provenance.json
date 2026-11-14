@@ -1,0 +1,14 @@
+{
+  "MAX30105.cpp": {
+    "source": "wearable_esp32/MAX30105.cpp",
+    "sha256": "8ae2b233b49f7e477af803f9dc8fb761bebd45bfb61c4a3a0847ea0e5dcadff3",
+    "modified": true,
+    "modification": "Trailing whitespace removed only; source sha256 retained above.",
+    "copied_sha256": "7e63b493ac58ad0881033d8a16f36566b62dc3b86f602be0db64d1e38ff24799"
+  },
+  "MAX30105.h": {
+    "source": "wearable_esp32/MAX30105.h",
+    "sha256": "e9e3789e152de7a034e4dbd9029dda0f4633d1c89241cf4efbe45285913920cd",
+    "modified": false
+  }
+}

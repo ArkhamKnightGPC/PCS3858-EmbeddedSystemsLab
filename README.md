@@ -50,3 +50,12 @@ PCS3858-EmbeddedSystemsLab
 - [MPU-6050 Adafruit library](https://thinkrobotics.com/blogs/tutorials/mpu6050-tutorial-complete-guide-to-arduino-motion-sensing-for-robotics?srsltid=AU7gw4VchZZtGeOV7VDctssY_GERE_-E5XZ9nzlNcVwggXjlix6Jmn8V)
 - [SparkFun MAX301x Particle Sensor Library](https://github.com/sparkfun/sparkfun_max3010x_sensor_library)
 - [NTC 20K Thermistor celsius temperature characteristic](https://prod-edam.honeywell.com/content/dam/honeywell-edam/hbt/en-us/documents/literature-and-specs/datasheets/centraline/hbt-bms-en0b0476-ge51r0319.pdf?download=false)
+
+## Testes isolados dos sensores
+
+- [MAX30102](max30102_isolated_test/README.md): aquisição bruta de vermelho/IR, verificação do FIFO e captura de logs.
+- [Acelerômetro MPU](mpu_isolated_test/README.md): leitura dos três eixos, configuração verificada e comandos de diagnóstico sem regravar.
+
+São projetos PlatformIO independentes, sem Wi-Fi/MQTT. Na montagem completa,
+o isolamento é apenas de software. Os READMEs incluem procedimentos, resultados
+e limitações dos ensaios; backups de flash e capturas locais não são publicados.
